@@ -13,7 +13,8 @@ repositories {
 }
 
 dependencies {
-    implementation 'com.github.Zrips:Jobs:4.17.2'
+
+	compileOnly(group: 'com.github.Zrips', name: 'Jobs', version: '4.17.2')
     compileOnly(project(":common"))
     compileOnly(project(":api"))
     compileOnly("net.kyori:adventure-api:${rootProject.properties["adventure_bundle_version"]}") {
