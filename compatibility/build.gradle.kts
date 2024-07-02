@@ -13,6 +13,7 @@ repositories {
 }
 
 dependencies {
+    implementation 'com.github.Zrips:Jobs:4.17.2'
     compileOnly(project(":common"))
     compileOnly(project(":api"))
     compileOnly("net.kyori:adventure-api:${rootProject.properties["adventure_bundle_version"]}") {
@@ -38,7 +39,6 @@ dependencies {
     compileOnly("net.Indyuce:MMOCore-API:1.12.1-SNAPSHOT")
     compileOnly("dev.aurelium:auraskills-api-bukkit:2.0.7")
     compileOnly("com.github.Archy-X:AureliumSkills:Beta1.3.21")
-    compileOnly("com.github.Zrips:Jobs:LATEST")
     // quest
     compileOnly(files("libs/BattlePass-4.0.6-api.jar"))
     compileOnly(files("libs/ClueScrolls-4.8.7-api.jar"))
