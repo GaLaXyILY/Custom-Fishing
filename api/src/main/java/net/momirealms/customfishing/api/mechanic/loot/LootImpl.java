@@ -1,3 +1,20 @@
+/*
+ *  Copyright (C) <2022> <XiaoMoMi>
+ *
+ *  This program is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
 package net.momirealms.customfishing.api.mechanic.loot;
 
 import net.momirealms.customfishing.api.mechanic.effect.LootBaseEffect;
@@ -97,10 +114,10 @@ public class LootImpl implements Loot {
     public static class BuilderImpl implements Builder {
 
         private LootType type = DEFAULT_TYPE;
-        private boolean instantGame = DEFAULT_INSTANT_GAME;
-        private boolean disableGame = DEFAULT_DISABLE_GAME;
-        private boolean disableStatistics = DEFAULT_DISABLE_STATS;
-        private boolean showInFinder = DEFAULT_SHOW_IN_FINDER;
+        private boolean instantGame = Loot.DefaultProperties.DEFAULT_INSTANT_GAME;
+        private boolean disableGame = Loot.DefaultProperties.DEFAULT_DISABLE_GAME;
+        private boolean disableStatistics = Loot.DefaultProperties.DEFAULT_DISABLE_STATS;
+        private boolean showInFinder = Loot.DefaultProperties.DEFAULT_SHOW_IN_FINDER;
         private String id = null;
         private String nick = "UNDEFINED";
         private StatisticsKeys statisticsKeys = null;

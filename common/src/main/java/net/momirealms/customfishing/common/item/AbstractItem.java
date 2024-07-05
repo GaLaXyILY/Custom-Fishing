@@ -1,8 +1,27 @@
+/*
+ *  Copyright (C) <2022> <XiaoMoMi>
+ *
+ *  This program is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
 package net.momirealms.customfishing.common.item;
 
 import net.momirealms.customfishing.common.plugin.CustomFishingPlugin;
+import net.momirealms.customfishing.common.util.Key;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 public class AbstractItem<R, I> implements Item<I> {
@@ -64,6 +83,30 @@ public class AbstractItem<R, I> implements Item<I> {
     @Override
     public Item<I> skull(String data) {
         factory.skull(item, data);
+        return this;
+    }
+
+    @Override
+    public Item<I> enchantments(Map<Key, Short> enchantments) {
+        factory.enchantments(item, enchantments);
+        return this;
+    }
+
+    @Override
+    public Item<I> addEnchantment(Key enchantment, int level) {
+        factory.addEnchantment(item, enchantment, level);
+        return this;
+    }
+
+    @Override
+    public Item<I> storedEnchantments(Map<Key, Short> enchantments) {
+        factory.storedEnchantments(item, enchantments);
+        return this;
+    }
+
+    @Override
+    public Item<I> addStoredEnchantment(Key enchantment, int level) {
+        factory.addStoredEnchantment(item, enchantment, level);
         return this;
     }
 

@@ -1,3 +1,20 @@
+/*
+ *  Copyright (C) <2022> <XiaoMoMi>
+ *
+ *  This program is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
 package net.momirealms.customfishing.common.locale;
 
 import net.kyori.adventure.internal.Internals;
@@ -74,7 +91,7 @@ public class MiniMessageTranslationRegistryImpl implements Examinable, MiniMessa
         if (miniMessageString == null) {
             return null;
         }
-        if (miniMessageString.equals("")) {
+        if (miniMessageString.isEmpty()) {
             return Component.empty();
         }
         final Component resultingComponent;
@@ -88,6 +105,15 @@ public class MiniMessageTranslationRegistryImpl implements Examinable, MiniMessa
         } else {
             return resultingComponent.children(component.children());
         }
+    }
+
+    @Override
+    public String miniMessageTranslation(@NotNull String key, @NotNull Locale locale) {
+        Translation translation = translations.get(key);
+        if (translation == null) {
+            return null;
+        }
+        return translation.translate(locale);
     }
 
     @Override

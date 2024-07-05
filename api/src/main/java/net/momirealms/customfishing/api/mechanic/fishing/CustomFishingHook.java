@@ -1,6 +1,24 @@
+/*
+ *  Copyright (C) <2022> <XiaoMoMi>
+ *
+ *  This program is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
 package net.momirealms.customfishing.api.mechanic.fishing;
 
 import net.momirealms.customfishing.api.BukkitCustomFishingPlugin;
+import net.momirealms.customfishing.api.event.FishingResultEvent;
 import net.momirealms.customfishing.api.mechanic.action.ActionTrigger;
 import net.momirealms.customfishing.api.mechanic.competition.CompetitionGoal;
 import net.momirealms.customfishing.api.mechanic.competition.FishingCompetition;
@@ -17,14 +35,19 @@ import net.momirealms.customfishing.api.mechanic.item.MechanicType;
 import net.momirealms.customfishing.api.mechanic.loot.Loot;
 import net.momirealms.customfishing.api.mechanic.loot.LootType;
 import net.momirealms.customfishing.api.mechanic.requirement.RequirementManager;
+import net.momirealms.customfishing.api.util.EventUtils;
 import net.momirealms.customfishing.common.helper.AdventureHelper;
 import net.momirealms.customfishing.common.plugin.scheduler.SchedulerTask;
 import net.momirealms.customfishing.common.util.TriConsumer;
 import net.momirealms.customfishing.common.util.TriFunction;
+import net.momirealms.sparrow.heart.SparrowHeart;
+import net.momirealms.sparrow.heart.feature.inventory.HandSlot;
+import org.bukkit.Material;
 import org.bukkit.Statistic;
 import org.bukkit.entity.FishHook;
 import org.bukkit.entity.Item;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -141,7 +164,7 @@ public class CustomFishingHook {
     }
 
     public void destroy() {
-        task.cancel();
+        if (task != null) task.cancel();
         if (hook.isValid()) hook.remove();
         if (hookMechanic != null) hookMechanic.destroy();
     }
@@ -165,24 +188,52 @@ public class CustomFishingHook {
         if (hookMechanic != null) {
             if (!hookMechanic.isHooked()) {
                 gears.trigger(ActionTrigger.REEL, context);
-                destroy();
+                end();
             } else {
-                if (nextLoot.disableGame()) {
+                if (nextLoot.disableGame() || RequirementManager.isSatisfied(context, ConfigManager.skipGameRequirements())) {
                     handleSuccessfulFishing();
-                    destroy();
+                    end();
                 } else {
                     handleSuccessfulFishing();
-                    destroy();
+                    end();
                 }
             }
         } else {
             gears.trigger(ActionTrigger.REEL, context);
-            destroy();
+            end();
         }
     }
 
+    private void end() {
+        plugin.getFishingManager().destroy(context.getHolder().getUniqueId());
+    }
+
     public void onBite() {
+        plugin.getEventManager().trigger(context, nextLoot.id(), MechanicType.getTypeByID(nextLoot.id()), ActionTrigger.BITE);
         gears.trigger(ActionTrigger.BITE, context);
+        if (RequirementManager.isSatisfied(context, ConfigManager.autoFishingRequirements())) {
+            handleSuccessfulFishing();
+            SparrowHeart.getInstance().swingHand(context.getHolder(), gears.getRodSlot());
+            end();
+            scheduleNextFishing();
+            return;
+        }
+        if (nextLoot.instantGame()) {
+
+        }
+    }
+
+    private void scheduleNextFishing() {
+        final Player player = context.getHolder();
+        plugin.getScheduler().sync().runLater(() -> {
+            if (player.isOnline()) {
+                ItemStack item = player.getInventory().getItem(gears.getRodSlot() == HandSlot.MAIN ? EquipmentSlot.HAND : EquipmentSlot.OFF_HAND);
+                if (item.getType() == Material.FISHING_ROD) {
+                    SparrowHeart.getInstance().useItem(player, gears.getRodSlot(), item);
+                    SparrowHeart.getInstance().swingHand(context.getHolder(), gears.getRodSlot());
+                }
+            }
+        }, 20, player.getLocation());
     }
 
     public void onLand() {
@@ -190,10 +241,12 @@ public class CustomFishingHook {
     }
 
     public void onEscape() {
+        plugin.getEventManager().trigger(context, nextLoot.id(), MechanicType.getTypeByID(nextLoot.id()), ActionTrigger.ESCAPE);
         gears.trigger(ActionTrigger.ESCAPE, context);
     }
 
     public void onLure() {
+        plugin.getEventManager().trigger(context, nextLoot.id(), MechanicType.getTypeByID(nextLoot.id()), ActionTrigger.LURE);
         gears.trigger(ActionTrigger.LURE, context);
     }
 
@@ -206,9 +259,7 @@ public class CustomFishingHook {
         context.arg(ContextKeys.HOOK_Z, hook.getLocation().getBlockZ());
 
         gears.trigger(ActionTrigger.FAILURE, context);
-
-        String id = context.arg(ContextKeys.ID);
-        BukkitCustomFishingPlugin.getInstance().getEventManager().trigger(context, id, MechanicType.getTypeByID(id), ActionTrigger.FAILURE);
+        plugin.getEventManager().trigger(context, nextLoot.id(), MechanicType.getTypeByID(nextLoot.id()), ActionTrigger.FAILURE);
     }
 
     private void handleSuccessfulFishing() {
@@ -222,43 +273,55 @@ public class CustomFishingHook {
         LootType lootType = context.arg(ContextKeys.LOOT);
         Objects.requireNonNull(lootType, "Missing loot type");
         Objects.requireNonNull(tempFinalEffect, "Missing final effects");
+
+        int amount;
+        if (lootType == LootType.ITEM) {
+            amount = (int) tempFinalEffect.multipleLootChance();
+            amount += Math.random() < (tempFinalEffect.multipleLootChance() - amount) ? 2 : 1;
+        } else {
+            amount = 1;
+        }
+        // set the amount of loot
+        context.arg(ContextKeys.AMOUNT, amount);
+
+        FishingResultEvent event = new FishingResultEvent(context, FishingResultEvent.Result.SUCCESS, hook, nextLoot);
+        if (EventUtils.fireAndCheckCancel(event)) {
+            return;
+        }
+
         switch (lootType) {
             case ITEM -> {
-                int amount = (int) tempFinalEffect.multipleLootChance();
-                amount += Math.random() < (tempFinalEffect.multipleLootChance() - amount) ? 2 : 1;
                 for (int i = 0; i < amount; i++) {
                     plugin.getScheduler().sync().runLater(() -> {
                         Item item = plugin.getItemManager().dropItemLoot(context, gears.getItem(FishingGears.GearType.ROD).stream().findAny().orElseThrow().right(), hook);
-                        if (item != null) {
-                            if (Objects.equals(context.arg(ContextKeys.NICK), "UNDEFINED")) {
-                                ItemStack stack = item.getItemStack();
-                                Optional<String> displayName = plugin.getItemManager().wrap(stack).displayName();
-                                if (displayName.isPresent()) {
-                                    context.arg(ContextKeys.NICK, AdventureHelper.jsonToMiniMessage(displayName.get()));
-                                } else {
-                                    context.arg(ContextKeys.NICK, "<lang:" + stack.getType().translationKey() + ">");
-                                }
+                        if (item != null && Objects.equals(context.arg(ContextKeys.NICK), "UNDEFINED")) {
+                            ItemStack stack = item.getItemStack();
+                            Optional<String> displayName = plugin.getItemManager().wrap(stack).displayName();
+                            if (displayName.isPresent()) {
+                                context.arg(ContextKeys.NICK, AdventureHelper.jsonToMiniMessage(displayName.get()));
+                            } else {
+                                context.arg(ContextKeys.NICK, "<lang:" + stack.getType().translationKey() + ">");
                             }
                         }
-                        handleSuccess();
+                        doSuccessActions();
                     }, (long) ConfigManager.multipleLootSpawnDelay() * i, hook.getLocation());
                 }
             }
             case BLOCK -> {
-                BukkitCustomFishingPlugin.getInstance().getBlockManager().summonBlockLoot(context);
-                handleSuccess();
+                plugin.getBlockManager().summonBlockLoot(context);
+                doSuccessActions();
             }
             case ENTITY -> {
-                BukkitCustomFishingPlugin.getInstance().getEntityManager().summonEntityLoot(context);
-                handleSuccess();
+                plugin.getEntityManager().summonEntityLoot(context);
+                doSuccessActions();
             }
         }
 
         gears.trigger(ActionTrigger.SUCCESS, context);
     }
 
-    private void handleSuccess() {
-        FishingCompetition competition = BukkitCustomFishingPlugin.getInstance().getCompetitionManager().getOnGoingCompetition();
+    private void doSuccessActions() {
+        FishingCompetition competition = plugin.getCompetitionManager().getOnGoingCompetition();
         if (competition != null && RequirementManager.isSatisfied(context, competition.getConfig().joinRequirements())) {
             Double customScore = context.arg(ContextKeys.CUSTOM_SCORE);
             if (customScore != null) {
@@ -292,15 +355,15 @@ public class CustomFishingHook {
         String id = context.arg(ContextKeys.ID);
         Player player = context.getHolder();
         MechanicType type = MechanicType.getTypeByID(id);
-        BukkitCustomFishingPlugin.getInstance().getEventManager().trigger(context, id, type, ActionTrigger.SUCCESS);
+        plugin.getEventManager().trigger(context, id, type, ActionTrigger.SUCCESS);
         player.setStatistic(Statistic.FISH_CAUGHT, player.getStatistic(Statistic.FISH_CAUGHT) + 1);
         if (!nextLoot.disableStats()) {
-            BukkitCustomFishingPlugin.getInstance().getStorageManager().getOnlineUser(player.getUniqueId()).ifPresent(
+            plugin.getStorageManager().getOnlineUser(player.getUniqueId()).ifPresent(
                     userData -> {
                         userData.statistics().addAmount(id, 1);
                         Optional.ofNullable(context.arg(ContextKeys.SIZE)).ifPresent(size -> {
                             if (userData.statistics().updateSize(id, size)) {
-                                BukkitCustomFishingPlugin.getInstance().getEventManager().trigger(context, id, type, ActionTrigger.NEW_SIZE_RECORD);
+                                plugin.getEventManager().trigger(context, id, type, ActionTrigger.NEW_SIZE_RECORD);
                             }
                         });
                     }

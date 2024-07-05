@@ -1,3 +1,20 @@
+/*
+ *  Copyright (C) <2022> <XiaoMoMi>
+ *
+ *  This program is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
 package net.momirealms.customfishing.bukkit.config;
 
 import dev.dejvokep.boostedyaml.YamlDocument;
@@ -18,6 +35,7 @@ import net.momirealms.customfishing.api.mechanic.effect.Effect;
 import net.momirealms.customfishing.api.mechanic.effect.EffectProperties;
 import net.momirealms.customfishing.api.mechanic.event.EventManager;
 import net.momirealms.customfishing.api.mechanic.item.MechanicType;
+import net.momirealms.customfishing.api.mechanic.loot.Loot;
 import net.momirealms.customfishing.api.mechanic.misc.value.MathValue;
 import net.momirealms.customfishing.api.mechanic.misc.value.TextValue;
 import net.momirealms.customfishing.api.mechanic.requirement.Requirement;
@@ -35,22 +53,22 @@ import net.momirealms.customfishing.bukkit.totem.particle.DustParticleSetting;
 import net.momirealms.customfishing.bukkit.totem.particle.ParticleSetting;
 import net.momirealms.customfishing.common.dependency.DependencyProperties;
 import net.momirealms.customfishing.common.helper.AdventureHelper;
-import net.momirealms.customfishing.common.util.ListUtils;
-import net.momirealms.customfishing.common.util.Pair;
-import net.momirealms.customfishing.common.util.RandomUtils;
-import net.momirealms.customfishing.common.util.TriConsumer;
-import org.bukkit.Axis;
-import org.bukkit.Color;
-import org.bukkit.Particle;
+import net.momirealms.customfishing.common.item.Item;
+import net.momirealms.customfishing.common.util.*;
+import org.bukkit.*;
 import org.bukkit.block.BlockFace;
 import org.bukkit.block.data.Bisected;
+import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventPriority;
+import org.bukkit.inventory.ItemStack;
 
 import java.io.File;
 import java.io.IOException;
 import java.util.*;
+import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 
 public class BukkitConfigManager extends ConfigManager {
 
@@ -92,10 +110,17 @@ public class BukkitConfigManager extends ConfigManager {
                             .builder()
                             .setVersioning(new BasicVersioning("config-version"))
                             .addIgnoredRoute(configVersion, "mechanics.mechanic-requirements", '.')
+                            .addIgnoredRoute(configVersion, "mechanics.skip-game-requirements", '.')
+                            .addIgnoredRoute(configVersion, "mechanics.auto-fishing-requirements", '.')
                             .addIgnoredRoute(configVersion, "mechanics.global-events", '.')
                             .addIgnoredRoute(configVersion, "mechanics.global-effects", '.')
+                            .addIgnoredRoute(configVersion, "mechanics.fishing-bag.collect-requirements", '.')
                             .addIgnoredRoute(configVersion, "mechanics.fishing-bag.collect-actions", '.')
                             .addIgnoredRoute(configVersion, "mechanics.fishing-bag.full-actions", '.')
+                            .addIgnoredRoute(configVersion, "mechanics.market.item-price", '.')
+                            .addIgnoredRoute(configVersion, "mechanics.market.sell-all-icons", '.')
+                            .addIgnoredRoute(configVersion, "mechanics.market.sell-icons", '.')
+                            .addIgnoredRoute(configVersion, "mechanics.market.decorative-icons", '.')
                             .addIgnoredRoute(configVersion, "other-settings.placeholder-register", '.')
                             .build()
             );
@@ -147,10 +172,17 @@ public class BukkitConfigManager extends ConfigManager {
         eventPriority = EventPriority.valueOf(config.getString("other-settings.event-priority", "NORMAL").toUpperCase(Locale.ENGLISH));
 
         mechanicRequirements = plugin.getRequirementManager().parseRequirements(config.getSection("mechanics.mechanic-requirements"), true);
+        skipGameRequirements = plugin.getRequirementManager().parseRequirements(config.getSection("mechanics.skip-game-requirements"), true);
+        autoFishingRequirements = plugin.getRequirementManager().parseRequirements(config.getSection("mechanics.auto-fishing-requirements"), true);
 
         enableBag = config.getBoolean("mechanics.fishing-bag.enable", true);
 
         multipleLootSpawnDelay = config.getInt("mechanics.multiple-loot-spawn-delay", 4);
+
+        Loot.DefaultProperties.DEFAULT_DISABLE_GAME = config.getBoolean("mechanics.global-loot-property.disable-game", false);
+        Loot.DefaultProperties.DEFAULT_DISABLE_STATS = config.getBoolean("mechanics.global-loot-property.disable-stat", false);
+        Loot.DefaultProperties.DEFAULT_INSTANT_GAME = config.getBoolean("mechanics.global-loot-property.instant-game", false);
+        Loot.DefaultProperties.DEFAULT_SHOW_IN_FINDER = config.getBoolean("mechanics.global-loot-property.show-in-fishfinder", true);
 
         Section placeholderSection = config.getSection("other-settings.placeholder-register");
         if (placeholderSection != null) {
@@ -219,7 +251,126 @@ public class BukkitConfigManager extends ConfigManager {
         }
     }
 
+    private Map<Key, Short> getEnchantments(Section section) {
+        Map<Key, Short> map = new HashMap<>();
+        for (Map.Entry<String, Object> entry : section.getStringRouteMappedValues(false).entrySet()) {
+            int level = Math.min(255, Math.max(1, (int) entry.getValue()));
+            if (Registry.ENCHANTMENT.get(Objects.requireNonNull(NamespacedKey.fromString(entry.getKey()))) != null) {
+                map.put(Key.fromString(entry.getKey()), (short) level);
+            }
+        }
+        return map;
+    }
+
+    private List<Tuple<Double, String, Short>> getPossibleEnchantments(Section section) {
+        List<Tuple<Double, String, Short>> list = new ArrayList<>();
+        for (Map.Entry<String, Object> entry : section.getStringRouteMappedValues(false).entrySet()) {
+            if (entry.getValue() instanceof Section inner) {
+                Tuple<Double, String, Short> tuple = Tuple.of(
+                        inner.getDouble("chance"),
+                        inner.getString("enchant"),
+                        Short.valueOf(String.valueOf(inner.getInt("level")))
+                );
+                list.add(tuple);
+            }
+        }
+        return list;
+    }
+
+    private Pair<Key, Short> getEnchantmentPair(String enchantmentWithLevel) {
+        String[] split = enchantmentWithLevel.split(":", 3);
+        return Pair.of(Key.of(split[0], split[1]), Short.parseShort(split[2]));
+    }
+
     private void registerBuiltInItemProperties() {
+        Function<Object, BiConsumer<Item<ItemStack>, Context<Player>>> f2 = arg -> {
+            Section section = (Section) arg;
+            boolean stored = Objects.equals(section.getNameAsString(), "stored-random-enchantments");
+            List<Tuple<Double, String, Short>> enchantments = getPossibleEnchantments(section);
+            return (item, context) -> {
+                HashSet<String> ids = new HashSet<>();
+                for (Tuple<Double, String, Short> pair : enchantments) {
+                    if (Math.random() < pair.left() && !ids.contains(pair.mid())) {
+                        if (stored) {
+                            item.addStoredEnchantment(Key.fromString(pair.mid()), pair.right());
+                        } else {
+                            item.addEnchantment(Key.fromString(pair.mid()), pair.right());
+                        }
+                        ids.add(pair.mid());
+                    }
+                }
+            };
+        };
+        this.registerItemParser(f2, 4850, "random-stored-enchantments");
+        this.registerItemParser(f2, 4750, "random-enchantments");
+        Function<Object, BiConsumer<Item<ItemStack>, Context<Player>>> f1 = arg -> {
+            Section section = (Section) arg;
+            boolean stored = Objects.equals(section.getNameAsString(), "stored-enchantment-pool");
+            Section amountSection = section.getSection("amount");
+            Section enchantSection = section.getSection("pool");
+            List<Pair<Integer, MathValue<Player>>> amountList = new ArrayList<>();
+            for (Map.Entry<String, Object> entry : amountSection.getStringRouteMappedValues(false).entrySet()) {
+                amountList.add(Pair.of(Integer.parseInt(entry.getKey()), MathValue.auto(entry.getValue())));
+            }
+            List<Pair<Pair<Key, Short>, MathValue<Player>>> enchantPoolPair = new ArrayList<>();
+            for (Map.Entry<String, Object> entry : enchantSection.getStringRouteMappedValues(false).entrySet()) {
+                enchantPoolPair.add(Pair.of(getEnchantmentPair(entry.getKey()), MathValue.auto(entry.getValue())));
+            }
+            if (amountList.isEmpty() || enchantPoolPair.isEmpty()) {
+                throw new RuntimeException("Both `pool` and `amount` should not be empty");
+            }
+            return (item, context) -> {
+                List<Pair<Integer, Double>> parsedAmountPair = new ArrayList<>(amountList.size());
+                for (Pair<Integer, MathValue<Player>> rawValue : amountList) {
+                    parsedAmountPair.add(Pair.of(rawValue.left(), rawValue.right().evaluate(context)));
+                }
+                int amount = WeightUtils.getRandom(parsedAmountPair);
+                if (amount <= 0) return;
+                HashSet<Enchantment> addedEnchantments = new HashSet<>();
+                List<Pair<Pair<Key, Short>, Double>> cloned = new ArrayList<>(enchantPoolPair.size());
+                for (Pair<Pair<Key, Short>, MathValue<Player>> rawValue : enchantPoolPair) {
+                    cloned.add(Pair.of(rawValue.left(), rawValue.right().evaluate(context)));
+                }
+                int i = 0;
+                outer:
+                while (i < amount && !cloned.isEmpty()) {
+                    Pair<Key, Short> enchantPair = WeightUtils.getRandom(cloned);
+                    Enchantment enchantment = Registry.ENCHANTMENT.get(Objects.requireNonNull(NamespacedKey.fromString(enchantPair.left().toString())));
+                    if (enchantment == null) {
+                        plugin.getPluginLogger().warn("Enchantment: " + enchantPair.left() + " doesn't exist.");
+                        return;
+                    }
+                    if (!stored) {
+                        for (Enchantment added : addedEnchantments) {
+                            if (enchantment.conflictsWith(added)) {
+                                cloned.removeIf(pair -> pair.left().left().equals(enchantPair.left()));
+                                continue outer;
+                            }
+                        }
+                    }
+                    if (stored) {
+                        item.addStoredEnchantment(enchantPair.left(), enchantPair.right());
+                    } else {
+                        item.addEnchantment(enchantPair.left(), enchantPair.right());
+                    }
+                    addedEnchantments.add(enchantment);
+                    cloned.removeIf(pair -> pair.left().left().equals(enchantPair.left()));
+                    i++;
+                }
+            };
+        };
+        this.registerItemParser(f1, 4800, "stored-enchantment-pool");
+        this.registerItemParser(f1, 4700, "enchantment-pool");
+        this.registerItemParser(arg -> {
+            Section section = (Section) arg;
+            Map<Key, Short> map = getEnchantments(section);
+            return (item, context) -> item.storedEnchantments(map);
+        }, 4600, "stored-enchantments");
+        this.registerItemParser(arg -> {
+            Section section = (Section) arg;
+            Map<Key, Short> map = getEnchantments(section);
+            return (item, context) -> item.enchantments(map);
+        }, 4500, "enchantments");
         this.registerItemParser(arg -> {
             MathValue<Player> mathValue = MathValue.auto(arg);
             return (item, context) -> item.customModelData((int) mathValue.evaluate(context));
@@ -556,6 +707,16 @@ public class BukkitConfigManager extends ConfigManager {
             boolean disable = (boolean) object;
             return builder -> builder.disableGlobalActions(disable);
         }, "disable-global-event");
+        this.registerEventParser(object -> {
+            Section section = (Section) object;
+            Action<Player>[] actions = plugin.getActionManager().parseActions(section);
+            return builder -> builder.action(ActionTrigger.LURE, actions);
+        }, "events", "lure");
+        this.registerEventParser(object -> {
+            Section section = (Section) object;
+            Action<Player>[] actions = plugin.getActionManager().parseActions(section);
+            return builder -> builder.action(ActionTrigger.ESCAPE, actions);
+        }, "events", "escape");
         this.registerEventParser(object -> {
             Section section = (Section) object;
             Action<Player>[] actions = plugin.getActionManager().parseActions(section);

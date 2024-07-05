@@ -1,3 +1,20 @@
+/*
+ *  Copyright (C) <2022> <XiaoMoMi>
+ *
+ *  This program is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
 package net.momirealms.customfishing.api.mechanic.fishing;
 
 import net.momirealms.customfishing.api.BukkitCustomFishingPlugin;
@@ -11,9 +28,9 @@ import net.momirealms.customfishing.api.mechanic.requirement.RequirementManager;
 import net.momirealms.customfishing.api.storage.user.UserData;
 import net.momirealms.customfishing.common.util.Pair;
 import net.momirealms.customfishing.common.util.TriConsumer;
+import net.momirealms.sparrow.heart.feature.inventory.HandSlot;
 import org.bukkit.GameMode;
 import org.bukkit.Material;
-import org.bukkit.Sound;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
@@ -42,6 +59,7 @@ public class FishingGears {
     private final HashMap<GearType, Collection<Pair<String, ItemStack>>> gears = new HashMap<>();
     private final ArrayList<EffectModifier> modifiers = new ArrayList<>();
     private boolean canFish = true;
+    private HandSlot rodSlot;
 
     public static void fishingGearsConsumers(BiConsumer<Context<Player>, FishingGears> fishingGearsConsumers) {
         FishingGears.fishingGearsConsumers = fishingGearsConsumers;
@@ -70,6 +88,10 @@ public class FishingGears {
         return modifiers;
     }
 
+    public HandSlot getRodSlot() {
+        return rodSlot;
+    }
+
     @NotNull
     public Collection<Pair<String, ItemStack>> getItem(GearType type) {
         return gears.getOrDefault(type, List.of());
@@ -86,6 +108,7 @@ public class FishingGears {
             String rodID = BukkitCustomFishingPlugin.getInstance().getItemManager().getItemID(rodOnMainHand ? mainHandItem : offHandItem);
             fishingGears.gears.put(GearType.ROD, List.of(Pair.of(rodID, rodOnMainHand ? mainHandItem : offHandItem)));
             context.arg(ContextKeys.ROD, rodID);
+            fishingGears.rodSlot = rodOnMainHand ? HandSlot.MAIN : HandSlot.OFF;
             BukkitCustomFishingPlugin.getInstance().getEffectManager().getEffectModifier(rodID, MechanicType.ROD).ifPresent(fishingGears.modifiers::add);
 
             // set enchantments

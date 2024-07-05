@@ -1,3 +1,20 @@
+/*
+ *  Copyright (C) <2022> <XiaoMoMi>
+ *
+ *  This program is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
 package net.momirealms.customfishing.bukkit;
 
 import net.momirealms.customfishing.api.BukkitCustomFishingPlugin;
@@ -17,7 +34,6 @@ import net.momirealms.customfishing.bukkit.effect.BukkitEffectManager;
 import net.momirealms.customfishing.bukkit.entity.BukkitEntityManager;
 import net.momirealms.customfishing.bukkit.event.BukkitEventManager;
 import net.momirealms.customfishing.bukkit.fishing.BukkitFishingManager;
-import net.momirealms.customfishing.bukkit.gui.ChatCatcherManager;
 import net.momirealms.customfishing.bukkit.hook.BukkitHookManager;
 import net.momirealms.customfishing.bukkit.integration.BukkitIntegrationManager;
 import net.momirealms.customfishing.bukkit.item.BukkitItemManager;
@@ -51,7 +67,6 @@ public class BukkitCustomFishingPluginImpl extends BukkitCustomFishingPlugin {
 
     private final ClassPathAppender classPathAppender;
     private final PluginLogger logger;
-    private ChatCatcherManager chatCatcherManager;
     private BukkitCommandManager commandManager;
     private Consumer<Object> debugger;
 
@@ -95,7 +110,6 @@ public class BukkitCustomFishingPluginImpl extends BukkitCustomFishingPlugin {
         this.senderFactory = new BukkitSenderFactory(this);
         this.placeholderManager = new BukkitPlaceholderManager(this);
         this.itemManager = new BukkitItemManager(this);
-        this.integrationManager = new BukkitIntegrationManager(this);
         this.competitionManager = new BukkitCompetitionManager(this);
         this.marketManager = new BukkitMarketManager(this);
         this.storageManager = new BukkitStorageManager(this);
@@ -110,7 +124,7 @@ public class BukkitCustomFishingPluginImpl extends BukkitCustomFishingPlugin {
         this.bagManager = new BukkitBagManager(this);
         this.totemManager = new BukkitTotemManager(this);
         this.translationManager = new TranslationManager(this);
-        this.chatCatcherManager = new ChatCatcherManager(this);
+        this.integrationManager = new BukkitIntegrationManager(this);
         this.commandManager = new BukkitCommandManager(this);
         this.commandManager.registerDefaultFeatures();
 
@@ -223,9 +237,5 @@ public class BukkitCustomFishingPluginImpl extends BukkitCustomFishingPlugin {
     @Override
     public void debug(Object message) {
         this.debugger.accept(message);
-    }
-
-    public ChatCatcherManager getChatCatcherManager() {
-        return chatCatcherManager;
     }
 }

@@ -6,6 +6,7 @@ plugins {
 
 repositories {
     maven("https://repo.xenondevs.xyz/releases") // invui
+    maven("https://repo.extendedclip.com/content/repositories/placeholderapi/") // papi
 }
 
 dependencies {
@@ -33,6 +34,7 @@ dependencies {
     implementation("com.saicone.rtag:rtag-item:${rootProject.properties["rtag_version"]}")
     // nms util
     implementation("com.github.Xiao-MoMi:Sparrow-Heart:${rootProject.properties["sparrow_heart_version"]}")
+    //implementation(files("libs/Sparrow-Heart-${rootProject.properties["sparrow_heart_version"]}.jar"))
     // bstats
     compileOnly("org.bstats:bstats-bukkit:${rootProject.properties["bstats_version"]}")
     // config
@@ -51,6 +53,8 @@ dependencies {
     compileOnly("org.incendo:cloud-paper:${rootProject.properties["cloud_paper_version"]}")
     // expression
     compileOnly("net.objecthunter:exp4j:${rootProject.properties["exp4j_version"]}")
+    // placeholder api
+    compileOnly("me.clip:placeholderapi:${rootProject.properties["placeholder_api_version"]}")
 }
 
 tasks {

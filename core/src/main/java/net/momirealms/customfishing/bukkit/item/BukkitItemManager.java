@@ -1,3 +1,20 @@
+/*
+ *  Copyright (C) <2022> <XiaoMoMi>
+ *
+ *  This program is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
 package net.momirealms.customfishing.bukkit.item;
 
 import net.momirealms.customfishing.api.BukkitCustomFishingPlugin;
@@ -11,7 +28,7 @@ import net.momirealms.customfishing.api.mechanic.item.CustomFishingItem;
 import net.momirealms.customfishing.api.mechanic.item.ItemManager;
 import net.momirealms.customfishing.api.mechanic.item.MechanicType;
 import net.momirealms.customfishing.bukkit.integration.item.CustomFishingItemProvider;
-import net.momirealms.customfishing.bukkit.util.ItemUtils;
+import net.momirealms.customfishing.bukkit.util.ItemStackUtils;
 import net.momirealms.customfishing.bukkit.util.LocationUtils;
 import net.momirealms.customfishing.common.item.Item;
 import net.momirealms.sparrow.heart.SparrowHeart;
@@ -100,7 +117,9 @@ public class BukkitItemManager implements ItemManager, Listener {
     @Nullable
     @Override
     public ItemStack buildInternal(@NotNull Context<Player> context, @NotNull String id) {
-        CustomFishingItem item = requireNonNull(items.get(id), () -> "No item found for " + id);
+//        CustomFishingItem item = requireNonNull(items.get(id), () -> "No item found for " + id);
+        CustomFishingItem item = items.get(id);
+        if (item == null) return null;
         return build(context, item);
     }
 
@@ -108,6 +127,7 @@ public class BukkitItemManager implements ItemManager, Listener {
     @Override
     public ItemStack build(@NotNull Context<Player> context, @NotNull CustomFishingItem item) {
         ItemStack itemStack = getOriginalStack(context.getHolder(), item.material());
+        if (itemStack.getType() == Material.AIR) return itemStack;
         Item<ItemStack> wrappedItemStack = factory.wrap(itemStack);
         for (BiConsumer<Item<ItemStack>, Context<Player>> consumer : item.tagConsumers()) {
             consumer.accept(wrappedItemStack, context);
@@ -173,15 +193,14 @@ public class BukkitItemManager implements ItemManager, Listener {
         double d0 = playerLocation.getX() - hookLocation.getX();
         double d1 = playerLocation.getY() - hookLocation.getY();
         double d2 = playerLocation.getZ() - hookLocation.getZ();
-        double d3 = 0.1D;
         Vector vector = new Vector(d0 * 0.1D, d1 * 0.1D + Math.sqrt(Math.sqrt(d0 * d0 + d1 * d1 + d2 * d2)) * 0.08D, d2 * 0.1D);
 
         org.bukkit.entity.Item itemEntity = hookLocation.getWorld().dropItem(hookLocation, itemStack);
-        FishingLootSpawnEvent spawnEvent = new FishingLootSpawnEvent(player, hookLocation, itemEntity);
+        FishingLootSpawnEvent spawnEvent = new FishingLootSpawnEvent(player, hookLocation, plugin.getLootManager().getLoot(id).orElseThrow(), itemEntity);
         Bukkit.getPluginManager().callEvent(spawnEvent);
         if (spawnEvent.isCancelled()) {
             itemEntity.remove();
-            return null;
+            return itemEntity;
         }
 
         itemEntity.setInvulnerable(true);
@@ -268,7 +287,7 @@ public class BukkitItemManager implements ItemManager, Listener {
                 PersistentDataContainer pdc = block.getChunk().getPersistentDataContainer();
                 ItemStack cloned = itemStack.clone();
                 cloned.setAmount(1);
-                pdc.set(new NamespacedKey(plugin.getBoostrap(), LocationUtils.toChunkPosString(block.getLocation())), PersistentDataType.STRING, ItemUtils.toBase64(cloned));
+                pdc.set(new NamespacedKey(plugin.getBoostrap(), LocationUtils.toChunkPosString(block.getLocation())), PersistentDataType.STRING, ItemStackUtils.toBase64(cloned));
             } else {
                 event.setCancelled(true);
             }
@@ -282,7 +301,7 @@ public class BukkitItemManager implements ItemManager, Listener {
             PersistentDataContainer pdc = block.getChunk().getPersistentDataContainer();
             String base64 = pdc.get(new NamespacedKey(plugin.getBoostrap(), LocationUtils.toChunkPosString(block.getLocation())), PersistentDataType.STRING);
             if (base64 != null) {
-                ItemStack itemStack = ItemUtils.fromBase64(base64);
+                ItemStack itemStack = ItemStackUtils.fromBase64(base64);
                 event.setDropItems(false);
                 block.getLocation().getWorld().dropItemNaturally(block.getLocation(), itemStack);
             }
@@ -329,7 +348,7 @@ public class BukkitItemManager implements ItemManager, Listener {
                 var nk = new NamespacedKey(plugin.getBoostrap(), LocationUtils.toChunkPosString(block.getLocation()));
                 String base64 = pdc.get(nk, PersistentDataType.STRING);
                 if (base64 != null) {
-                    ItemStack itemStack = ItemUtils.fromBase64(base64);
+                    ItemStack itemStack = ItemStackUtils.fromBase64(base64);
                     block.getLocation().getWorld().dropItemNaturally(block.getLocation(), itemStack);
                     blockToRemove.add(block);
                     block.setType(Material.AIR);

@@ -1,12 +1,36 @@
+/*
+ *  Copyright (C) <2022> <XiaoMoMi>
+ *
+ *  This program is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
 package net.momirealms.customfishing.bukkit.item.impl;
 
 import com.saicone.rtag.RtagItem;
+import com.saicone.rtag.tag.TagBase;
+import com.saicone.rtag.tag.TagCompound;
+import com.saicone.rtag.tag.TagList;
+import com.saicone.rtag.util.EnchantmentTag;
 import net.momirealms.customfishing.bukkit.item.BukkitItemFactory;
 import net.momirealms.customfishing.common.plugin.CustomFishingPlugin;
+import net.momirealms.customfishing.common.util.Key;
+import org.bukkit.NamespacedKey;
+import org.bukkit.Registry;
+import org.bukkit.enchantments.Enchantment;
+import org.bukkit.inventory.ItemStack;
 
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 
 public class UniversalItemFactory extends BukkitItemFactory {
 
@@ -97,5 +121,55 @@ public class UniversalItemFactory extends BukkitItemFactory {
     @Override
     protected void damage(RtagItem item, Integer damage) {
         item.set(damage, "Damage");
+    }
+
+    @Override
+    protected void enchantments(RtagItem item, Map<Key, Short> enchantments) {
+        ArrayList<Object> tags = new ArrayList<>();
+        for (Map.Entry<Key, Short> entry : enchantments.entrySet()) {
+            tags.add((Map.of("id", entry.getKey().toString(), "lvl", entry.getValue())));
+        }
+        item.set(tags, "Enchantments");
+    }
+
+    @Override
+    protected void storedEnchantments(RtagItem item, Map<Key, Short> enchantments) {
+        ArrayList<Object> tags = new ArrayList<>();
+        for (Map.Entry<Key, Short> entry : enchantments.entrySet()) {
+            tags.add((Map.of("id", entry.getKey().toString(), "lvl", entry.getValue())));
+        }
+        item.set(tags, "StoredEnchantments");
+    }
+
+    @Override
+    protected void addEnchantment(RtagItem item, Key enchantment, int level) {
+        Object enchantments = item.getExact("Enchantments");
+        if (enchantments != null) {
+            for (Object enchant : TagList.getValue(enchantments)) {
+                if (TagBase.getValue(TagCompound.get(enchant, "id")).equals(enchant.toString())) {
+                    TagCompound.set(enchant, "lvl", TagBase.newTag(level));
+                    return;
+                }
+            }
+            item.add(Map.of("id", enchantment.toString(), "lvl", (short) level), "Enchantments");
+        } else {
+            item.set(List.of(Map.of("id", enchantment.toString(), "lvl", (short) level)), "Enchantments");
+        }
+    }
+
+    @Override
+    protected void addStoredEnchantment(RtagItem item, Key enchantment, int level) {
+        Object enchantments = item.getExact("StoredEnchantments");
+        if (enchantments != null) {
+            for (Object enchant : TagList.getValue(enchantments)) {
+                if (TagBase.getValue(TagCompound.get(enchant, "id")).equals(enchant.toString())) {
+                    TagCompound.set(enchant, "lvl", TagBase.newTag(level));
+                    return;
+                }
+            }
+            item.add(Map.of("id", enchantment.toString(), "lvl", (short) level), "StoredEnchantments");
+        } else {
+            item.set(List.of(Map.of("id", enchantment.toString(), "lvl", (short) level)), "StoredEnchantments");
+        }
     }
 }

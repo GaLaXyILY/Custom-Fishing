@@ -1,3 +1,20 @@
+/*
+ *  Copyright (C) <2022> <XiaoMoMi>
+ *
+ *  This program is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
 package net.momirealms.customfishing.api.mechanic.item;
 
 import net.momirealms.customfishing.api.mechanic.config.function.PriorityFunction;
@@ -7,6 +24,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.TreeSet;
 import java.util.function.BiConsumer;
 
@@ -27,7 +45,7 @@ public class CustomFishingItemImpl implements CustomFishingItem {
 
     @Override
     public String material() {
-        return material;
+        return Optional.ofNullable(material).orElse("AIR");
     }
 
     @Override

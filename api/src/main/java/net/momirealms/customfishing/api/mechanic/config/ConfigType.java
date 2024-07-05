@@ -1,3 +1,20 @@
+/*
+ *  Copyright (C) <2022> <XiaoMoMi>
+ *
+ *  This program is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
 package net.momirealms.customfishing.api.mechanic.config;
 
 import dev.dejvokep.boostedyaml.block.implementation.Section;
@@ -50,7 +67,7 @@ public class ConfigType {
                 MechanicType.register(id, MechanicType.ROD);
                 RodConfigParser config = new RodConfigParser(id, section, functions);
                 BukkitCustomFishingPlugin.getInstance().getItemManager().registerItem(config.getItem());
-                BukkitCustomFishingPlugin.getInstance().getLootManager().registerLoot(config.getLoot());
+                //BukkitCustomFishingPlugin.getInstance().getLootManager().registerLoot(config.getLoot());
                 BukkitCustomFishingPlugin.getInstance().getEffectManager().registerEffectModifier(config.getEffectModifier(), MechanicType.ROD);
                 BukkitCustomFishingPlugin.getInstance().getEventManager().registerEventCarrier(config.getEventCarrier());
             }
@@ -62,7 +79,7 @@ public class ConfigType {
                 MechanicType.register(id, MechanicType.BAIT);
                 BaitConfigParser config = new BaitConfigParser(id, section, functions);
                 BukkitCustomFishingPlugin.getInstance().getItemManager().registerItem(config.getItem());
-                BukkitCustomFishingPlugin.getInstance().getLootManager().registerLoot(config.getLoot());
+                //BukkitCustomFishingPlugin.getInstance().getLootManager().registerLoot(config.getLoot());
                 BukkitCustomFishingPlugin.getInstance().getEffectManager().registerEffectModifier(config.getEffectModifier(), MechanicType.BAIT);
                 BukkitCustomFishingPlugin.getInstance().getEventManager().registerEventCarrier(config.getEventCarrier());
             }
@@ -74,7 +91,7 @@ public class ConfigType {
                 MechanicType.register(id, MechanicType.HOOK);
                 HookConfigParser config = new HookConfigParser(id, section, functions);
                 BukkitCustomFishingPlugin.getInstance().getItemManager().registerItem(config.getItem());
-                BukkitCustomFishingPlugin.getInstance().getLootManager().registerLoot(config.getLoot());
+                //BukkitCustomFishingPlugin.getInstance().getLootManager().registerLoot(config.getLoot());
                 BukkitCustomFishingPlugin.getInstance().getEffectManager().registerEffectModifier(config.getEffectModifier(), MechanicType.HOOK);
                 BukkitCustomFishingPlugin.getInstance().getEventManager().registerEventCarrier(config.getEventCarrier());
                 BukkitCustomFishingPlugin.getInstance().getHookManager().registerHook(config.getHook());
@@ -87,7 +104,7 @@ public class ConfigType {
                 MechanicType.register(id, MechanicType.UTIL);
                 UtilConfigParser config = new UtilConfigParser(id, section, functions);
                 BukkitCustomFishingPlugin.getInstance().getItemManager().registerItem(config.getItem());
-                BukkitCustomFishingPlugin.getInstance().getLootManager().registerLoot(config.getLoot());
+                //BukkitCustomFishingPlugin.getInstance().getLootManager().registerLoot(config.getLoot());
                 BukkitCustomFishingPlugin.getInstance().getEffectManager().registerEffectModifier(config.getEffectModifier(), MechanicType.UTIL);
                 BukkitCustomFishingPlugin.getInstance().getEventManager().registerEventCarrier(config.getEventCarrier());
             }

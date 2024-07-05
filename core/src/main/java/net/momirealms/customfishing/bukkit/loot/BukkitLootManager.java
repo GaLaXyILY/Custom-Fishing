@@ -1,3 +1,20 @@
+/*
+ *  Copyright (C) <2022> <XiaoMoMi>
+ *
+ *  This program is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
 package net.momirealms.customfishing.bukkit.loot;
 
 import dev.dejvokep.boostedyaml.YamlDocument;
@@ -130,7 +147,9 @@ public class BukkitLootManager implements LootManager {
             lootWeightMap.put(pair.left(), pair.right().apply(context, previous));
         }
         String lootID = WeightUtils.getRandom(lootWeightMap);
-        return getLoot(lootID).orElseThrow(() -> new RuntimeException("Could not find loot " + lootID));
+        return Optional.ofNullable(lootID)
+                .map(id -> getLoot(lootID).orElseThrow(() -> new RuntimeException("Could not find loot " + lootID)))
+                .orElseThrow(() -> new RuntimeException("No loot available. " + context));
     }
 
     private void modifyWeightMap(Map<String, Double> weightMap, Context<Player> context, ConditionalElement<List<Pair<String, BiFunction<Context<Player>, Double, Double>>>, Player> conditionalElement) {

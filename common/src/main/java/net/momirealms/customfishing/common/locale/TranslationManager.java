@@ -1,3 +1,20 @@
+/*
+ *  Copyright (C) <2022> <XiaoMoMi>
+ *
+ *  This program is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
 package net.momirealms.customfishing.common.locale;
 
 import dev.dejvokep.boostedyaml.YamlDocument;
@@ -21,6 +38,7 @@ public class TranslationManager {
 
     public static final Locale DEFAULT_LOCALE = Locale.ENGLISH;
     private static final List<String> locales = List.of("en");
+    private static TranslationManager instance;
 
     private final CustomFishingPlugin plugin;
     private final Set<Locale> installed = ConcurrentHashMap.newKeySet();
@@ -30,6 +48,7 @@ public class TranslationManager {
     public TranslationManager(CustomFishingPlugin plugin) {
         this.plugin = plugin;
         this.translationsDirectory = this.plugin.getConfigDirectory().resolve("translations");
+        instance = this;
     }
 
     public void reload() {
@@ -47,6 +66,20 @@ public class TranslationManager {
         this.registry.defaultLocale(DEFAULT_LOCALE);
         this.loadFromFileSystem(this.translationsDirectory, false);
         MiniMessageTranslator.translator().addSource(this.registry);
+    }
+
+    public static String miniMessageTranslation(String key) {
+        return miniMessageTranslation(key, null);
+    }
+
+    public static String miniMessageTranslation(String key, @Nullable Locale locale) {
+        if (locale == null) {
+            locale = Locale.getDefault();
+            if (locale == null) {
+                locale = DEFAULT_LOCALE;
+            }
+        }
+        return instance.registry.miniMessageTranslation(key, locale);
     }
 
     public static Component render(Component component) {
@@ -113,6 +146,7 @@ public class TranslationManager {
         return e instanceof IllegalArgumentException && (e.getMessage().startsWith("Invalid key") || e.getMessage().startsWith("Translation already exists"));
     }
 
+    @SuppressWarnings("unchecked")
     private Pair<Locale, Map<String, String>> loadTranslationFile(Path translationFile) {
         String fileName = translationFile.getFileName().toString();
         String localeString = fileName.substring(0, fileName.length() - ".yml".length());
