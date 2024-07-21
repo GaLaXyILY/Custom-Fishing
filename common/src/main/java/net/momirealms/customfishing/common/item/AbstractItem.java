@@ -48,6 +48,17 @@ public class AbstractItem<R, I> implements Item<I> {
     }
 
     @Override
+    public Item<I> maxDamage(Integer data) {
+        factory.maxDamage(item, data);
+        return this;
+    }
+
+    @Override
+    public Optional<Integer> maxDamage() {
+        return factory.maxDamage(item);
+    }
+
+    @Override
     public Item<I> customModelData(Integer data) {
         factory.customModelData(item, data);
         return this;
@@ -72,6 +83,17 @@ public class AbstractItem<R, I> implements Item<I> {
     @Override
     public Optional<List<String>> lore() {
         return factory.lore(item);
+    }
+
+    @Override
+    public Item<I> unbreakable(boolean unbreakable) {
+        factory.unbreakable(item, unbreakable);
+        return this;
+    }
+
+    @Override
+    public boolean unbreakable() {
+        return factory.unbreakable(item);
     }
 
     @Override
@@ -107,6 +129,12 @@ public class AbstractItem<R, I> implements Item<I> {
     @Override
     public Item<I> addStoredEnchantment(Key enchantment, int level) {
         factory.addStoredEnchantment(item, enchantment, level);
+        return this;
+    }
+
+    @Override
+    public Item<I> itemFlags(List<String> flags) {
+        factory.itemFlags(item, flags);
         return this;
     }
 
@@ -149,5 +177,9 @@ public class AbstractItem<R, I> implements Item<I> {
     @Override
     public void update() {
         factory.update(item);
+    }
+
+    public R getRTagItem() {
+        return item;
     }
 }

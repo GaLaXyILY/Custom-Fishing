@@ -57,7 +57,7 @@ mechanics:
             actions:
               actionbar_action:
                 type: actionbar
-                value: '<#FFD700>[New Record]</#FFD700> <#FFFFF0>You caught a(n) {nick} which is <#FFA500>{size}cm</#FFA500> long!</#FFFFF0>'
+                value: '<#FFD700>[New Record]</#FFD700> <#FFFFF0>You caught a(n) {nick} which is <#FFA500>{size_formatted}cm</#FFA500> long!</#FFFFF0>'
               sound_action:
                 type: sound
                 value:
@@ -87,7 +87,7 @@ mechanics:
             actions:
               actionbar_action:
                 type: actionbar
-                value: '<gray>You caught a(n) {nick} which is <#F5F5F5>{size}cm</#F5F5F5> long!</gray> <#C0C0C0>(Best record: {record}cm)</#C0C0C0>'
+                value: '<gray>You caught a(n) {nick} which is <#F5F5F5>{size_formatted}cm</#F5F5F5> long!</gray> <#C0C0C0>(Best record: {record_formatted}cm)</#C0C0C0>'
         title_action:
           type: random-title
           value:
@@ -159,8 +159,12 @@ mechanics:
     # Other whitelist-items
     whitelist-items:
       - fishing_rod
-    # Can fishing bag store fishing loots?
+    # Decide the items that can be stored in bag
     can-store-loot: false
+    can-store-rod: true
+    can-store-bait: true
+    can-store-hook: true
+    can-store-util: true
     # Requirements for automatically collecting
     collect-requirements:
       permission: fishingbag.collectloot
@@ -210,7 +214,7 @@ mechanics:
       - 'AIIIIIIIA'
       - 'AAAABAAAA'
     # Price formula (For CustomFishing loots)
-    price-formula: '{BASE} + {BONUS} * {SIZE}'
+    price-formula: '{base} + {bonus} * {size}'
     # Allow player to sell fish in bundles
     allow-bundle: true
     # Allow player to sell fish in shulker boxes
@@ -389,6 +393,8 @@ mechanics:
     allow-multiple-type: true
     # Is it allowed for totems of the same type to take effect cumulatively
     allow-same-type: false
+  # Enable fake bait casting animation
+  bait-animation: true
 
 # Other settings
 other-settings:
@@ -407,7 +413,6 @@ other-settings:
   lock-data: true
   # Requires PlaceholderAPI to work
   placeholder-register:
-    '{record}': '%fishingstats_size-record_{loot}%'
     # Requires server expansion
     '{date}': '%server_time_yyyy-MM-dd-HH:mm:ss%'
     # Requires player expansion

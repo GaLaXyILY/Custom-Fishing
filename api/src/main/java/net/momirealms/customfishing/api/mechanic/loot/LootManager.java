@@ -30,7 +30,7 @@ import java.util.Optional;
 
 public interface LootManager extends Reloadable {
 
-    void registerLoot(@NotNull Loot loot);
+    boolean registerLoot(@NotNull Loot loot);
 
     @NotNull
     List<String> getGroupMembers(String key);
@@ -38,7 +38,7 @@ public interface LootManager extends Reloadable {
     @NotNull
     Optional<Loot> getLoot(String key);
 
-    Map<String, Double> getWeightedLoots(Context<Player> context);
+    Map<String, Double> getWeightedLoots(Effect effect, Context<Player> context);
 
     @Nullable
     Loot getNextLoot(Effect effect, Context<Player> context);

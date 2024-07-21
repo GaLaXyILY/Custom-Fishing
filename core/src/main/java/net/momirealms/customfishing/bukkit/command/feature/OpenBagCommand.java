@@ -41,8 +41,13 @@ public class OpenBagCommand extends BukkitCommandFeature<CommandSender> {
                 .flag(manager.flagBuilder("silent").withAliases("s").build())
                 .handler(context -> {
                     final Player player = context.get("player");
-                    BukkitCustomFishingPlugin.getInstance().getBagManager().openBag(player, player.getUniqueId());
-                    handleFeedback(context, MessageConstants.COMMAND_BAG_OPEN_SUCCESS, Component.text(player.getName()));
+                    BukkitCustomFishingPlugin.getInstance().getBagManager().openBag(player, player.getUniqueId()).whenComplete((result, e) -> {
+                        if (!result || e != null) {
+                            handleFeedback(context, MessageConstants.COMMAND_BAG_OPEN_FAILURE_NOT_LOADED, Component.text(player.getName()));
+                        } else {
+                            handleFeedback(context, MessageConstants.COMMAND_BAG_OPEN_SUCCESS, Component.text(player.getName()));
+                        }
+                    });
                 });
     }
 

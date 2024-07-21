@@ -36,6 +36,7 @@ import java.io.File;
 import java.util.*;
 import java.util.function.BiFunction;
 
+@SuppressWarnings("DuplicatedCode")
 public class BukkitLootManager implements LootManager {
 
     private final BukkitCustomFishingPlugin plugin;
@@ -96,11 +97,13 @@ public class BukkitLootManager implements LootManager {
     }
 
     @Override
-    public void registerLoot(@NotNull Loot loot) {
+    public boolean registerLoot(@NotNull Loot loot) {
+        if (lootMap.containsKey(loot.id())) return false;
         this.lootMap.put(loot.id(), loot);
         for (String group : loot.lootGroup()) {
             addGroupMember(group, loot.id());
         }
+        return true;
     }
 
     private void addGroupMember(String group, String member) {
@@ -126,8 +129,21 @@ public class BukkitLootManager implements LootManager {
     }
 
     @Override
-    public HashMap<String, Double> getWeightedLoots(Context<Player> context) {
-        return null;
+    public HashMap<String, Double> getWeightedLoots(Effect effect, Context<Player> context) {
+        HashMap<String, Double> lootWeightMap = new HashMap<>();
+        for (ConditionalElement<List<Pair<String, BiFunction<Context<Player>, Double, Double>>>, Player> conditionalElement : lootConditions.values()) {
+            modifyWeightMap(lootWeightMap, context, conditionalElement);
+        }
+        for (Pair<String, BiFunction<Context<Player>, Double, Double>> pair : effect.weightOperations()) {
+            double previous = lootWeightMap.getOrDefault(pair.left(), 0d);
+            if (previous > 0)
+                lootWeightMap.put(pair.left(), pair.right().apply(context, previous));
+        }
+        for (Pair<String, BiFunction<Context<Player>, Double, Double>> pair : effect.weightOperationsIgnored()) {
+            double previous = lootWeightMap.getOrDefault(pair.left(), 0d);
+            lootWeightMap.put(pair.left(), pair.right().apply(context, previous));
+        }
+        return lootWeightMap;
     }
 
     @Nullable

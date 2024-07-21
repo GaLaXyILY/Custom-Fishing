@@ -18,7 +18,9 @@
 package net.momirealms.customfishing.api.mechanic.fishing;
 
 import net.momirealms.customfishing.api.BukkitCustomFishingPlugin;
+import net.momirealms.customfishing.api.event.FishingLootSpawnEvent;
 import net.momirealms.customfishing.api.event.FishingResultEvent;
+import net.momirealms.customfishing.api.mechanic.MechanicType;
 import net.momirealms.customfishing.api.mechanic.action.ActionTrigger;
 import net.momirealms.customfishing.api.mechanic.competition.CompetitionGoal;
 import net.momirealms.customfishing.api.mechanic.competition.FishingCompetition;
@@ -31,7 +33,8 @@ import net.momirealms.customfishing.api.mechanic.fishing.hook.HookMechanic;
 import net.momirealms.customfishing.api.mechanic.fishing.hook.LavaFishingMechanic;
 import net.momirealms.customfishing.api.mechanic.fishing.hook.VanillaMechanic;
 import net.momirealms.customfishing.api.mechanic.fishing.hook.VoidFishingMechanic;
-import net.momirealms.customfishing.api.mechanic.item.MechanicType;
+import net.momirealms.customfishing.api.mechanic.game.Game;
+import net.momirealms.customfishing.api.mechanic.game.GamingPlayer;
 import net.momirealms.customfishing.api.mechanic.loot.Loot;
 import net.momirealms.customfishing.api.mechanic.loot.LootType;
 import net.momirealms.customfishing.api.mechanic.requirement.RequirementManager;
@@ -42,13 +45,14 @@ import net.momirealms.customfishing.common.util.TriConsumer;
 import net.momirealms.customfishing.common.util.TriFunction;
 import net.momirealms.sparrow.heart.SparrowHeart;
 import net.momirealms.sparrow.heart.feature.inventory.HandSlot;
+import org.bukkit.Bukkit;
 import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
 import org.bukkit.Statistic;
-import org.bukkit.entity.FishHook;
-import org.bukkit.entity.Item;
-import org.bukkit.entity.Player;
+import org.bukkit.entity.*;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.persistence.PersistentDataType;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -67,6 +71,8 @@ public class CustomFishingHook {
     private Effect tempFinalEffect;
     private HookMechanic hookMechanic;
     private Loot nextLoot;
+    private GamingPlayer gamingPlayer;
+    private BaitAnimationTask baitAnimationTask;
 
     private static TriFunction<FishHook, Context<Player>, Effect, List<HookMechanic>> mechanicProviders = defaultMechanicProviders();
 
@@ -98,11 +104,19 @@ public class CustomFishingHook {
                 consumer.accept(effect, context, 0);
             }
         }
+        // enable bait animation
+        if (ConfigManager.baitAnimation() && !gears.getItem(FishingGears.GearType.BAIT).isEmpty()) {
+            this.baitAnimationTask = new BaitAnimationTask(plugin, context.getHolder(), hook, gears.getItem(FishingGears.GearType.BAIT).stream().findAny().get().right());
+        }
+
         List<HookMechanic> enabledMechanics = mechanicProviders.apply(hook, context, effect);
         this.task = plugin.getScheduler().sync().runRepeating(() -> {
             // destroy if hook is invalid
             if (!hook.isValid()) {
                 plugin.getFishingManager().destroy(hook.getOwnerUniqueId());
+                return;
+            }
+            if (isPlayingGame()) {
                 return;
             }
             if (this.hookMechanic != null) {
@@ -117,6 +131,13 @@ public class CustomFishingHook {
                     if (this.hookMechanic != mechanic) {
                         if (this.hookMechanic != null) this.hookMechanic.destroy();
                         this.hookMechanic = mechanic;
+
+                        // remove bait animation if there exists
+                        if (this.baitAnimationTask != null) {
+                            this.baitAnimationTask.cancel();
+                            this.baitAnimationTask = null;
+                        }
+
                         // to update some properties
                         mechanic.preStart();
                         Effect tempEffect = effect.copy();
@@ -126,37 +147,40 @@ public class CustomFishingHook {
                             }
                         }
 
-                        context.arg(ContextKeys.HOOK_LOCATION, hook.getLocation());
-                        context.arg(ContextKeys.HOOK_X, hook.getLocation().getBlockX());
-                        context.arg(ContextKeys.HOOK_Y, hook.getLocation().getBlockY());
-                        context.arg(ContextKeys.HOOK_Z, hook.getLocation().getBlockZ());
+                        context.arg(ContextKeys.OTHER_LOCATION, hook.getLocation());
+                        context.arg(ContextKeys.OTHER_X, hook.getLocation().getBlockX());
+                        context.arg(ContextKeys.OTHER_Y, hook.getLocation().getBlockY());
+                        context.arg(ContextKeys.OTHER_Z, hook.getLocation().getBlockZ());
 
                         // get the next loot
                         Loot loot = plugin.getLootManager().getNextLoot(effect, context);
-                        if (loot == null) {
-                            plugin.debug("No loot available for player " + context.getHolder().getName());
-                            return;
-                        }
-                        this.nextLoot = loot;
+                        if (loot != null) {
+                            this.nextLoot = loot;
 
-                        context.arg(ContextKeys.ID, loot.id());
-                        context.arg(ContextKeys.NICK, loot.nick());
-                        context.arg(ContextKeys.LOOT, loot.type());
+                            context.arg(ContextKeys.ID, loot.id());
+                            context.arg(ContextKeys.NICK, loot.nick());
+                            context.arg(ContextKeys.LOOT, loot.type());
 
-                        plugin.debug("Next loot: " + loot.id());
-                        // get its basic properties
-                        Effect baseEffect = loot.baseEffect().toEffect(context);
-                        tempEffect.combine(baseEffect);
-                        // apply the gears' effects
-                        for (EffectModifier modifier : gears.effectModifiers()) {
-                            for (TriConsumer<Effect, Context<Player>, Integer> consumer : modifier.modifiers()) {
-                                consumer.accept(tempEffect, context, 2);
+                            plugin.debug("Next loot: " + loot.id());
+                            // get its basic properties
+                            Effect baseEffect = loot.baseEffect().toEffect(context);
+                            tempEffect.combine(baseEffect);
+                            // apply the gears' effects
+                            for (EffectModifier modifier : gears.effectModifiers()) {
+                                for (TriConsumer<Effect, Context<Player>, Integer> consumer : modifier.modifiers()) {
+                                    consumer.accept(tempEffect, context, 2);
+                                }
                             }
-                        }
-                        // start the mechanic
-                        mechanic.start(tempEffect);
+                            // start the mechanic
+                            mechanic.start(tempEffect);
 
-                        this.tempFinalEffect = tempEffect;
+                            this.tempFinalEffect = tempEffect;
+                        } else {
+                            mechanic.start(tempEffect);
+                            this.tempFinalEffect = tempEffect;
+                            // to prevent players from getting any loot
+                            mechanic.freeze();
+                        }
                     }
                 }
             }
@@ -167,6 +191,15 @@ public class CustomFishingHook {
         if (task != null) task.cancel();
         if (hook.isValid()) hook.remove();
         if (hookMechanic != null) hookMechanic.destroy();
+        if (gamingPlayer != null) gamingPlayer.destroy();
+        if (this.baitAnimationTask != null) {
+            this.baitAnimationTask.cancel();
+            this.baitAnimationTask = null;
+        }
+    }
+
+    public Context<Player> getContext() {
+        return context;
     }
 
     @NotNull
@@ -185,6 +218,7 @@ public class CustomFishingHook {
     }
 
     public void onReelIn() {
+        if (isPlayingGame()) return;
         if (hookMechanic != null) {
             if (!hookMechanic.isHooked()) {
                 gears.trigger(ActionTrigger.REEL, context);
@@ -194,8 +228,7 @@ public class CustomFishingHook {
                     handleSuccessfulFishing();
                     end();
                 } else {
-                    handleSuccessfulFishing();
-                    end();
+                    gameStart();
                 }
             }
         } else {
@@ -204,12 +237,13 @@ public class CustomFishingHook {
         }
     }
 
-    private void end() {
+    public void end() {
         plugin.getFishingManager().destroy(context.getHolder().getUniqueId());
     }
 
     public void onBite() {
-        plugin.getEventManager().trigger(context, nextLoot.id(), MechanicType.getTypeByID(nextLoot.id()), ActionTrigger.BITE);
+        if (isPlayingGame()) return;
+        plugin.getEventManager().trigger(context, nextLoot.id(), MechanicType.LOOT, ActionTrigger.BITE);
         gears.trigger(ActionTrigger.BITE, context);
         if (RequirementManager.isSatisfied(context, ConfigManager.autoFishingRequirements())) {
             handleSuccessfulFishing();
@@ -219,8 +253,44 @@ public class CustomFishingHook {
             return;
         }
         if (nextLoot.instantGame()) {
-
+            gameStart();
         }
+    }
+
+    public boolean isPlayingGame() {
+        return gamingPlayer != null && gamingPlayer.isValid();
+    }
+
+    public void cancelCurrentGame() {
+        if (gamingPlayer == null || !gamingPlayer.isValid()) {
+            throw new RuntimeException("You can't call this method if the player is not playing the game");
+        }
+        gamingPlayer.cancel();
+        gamingPlayer = null;
+        if (hookMechanic != null) {
+            hookMechanic.unfreeze(tempFinalEffect);
+        }
+    }
+
+    public void gameStart() {
+        if (isPlayingGame())
+            return;
+        Game nextGame = plugin.getGameManager().getNextGame(tempFinalEffect, context);
+        if (nextGame != null) {
+            plugin.debug("Next game: " + nextGame.id());
+            gamingPlayer = nextGame.start(this, tempFinalEffect);
+            if (this.hookMechanic != null) {
+                this.hookMechanic.freeze();
+            }
+        } else {
+            plugin.debug("Next game: " + "`null`");
+            handleSuccessfulFishing();
+            end();
+        }
+    }
+
+    public Optional<GamingPlayer> getGamingPlayer() {
+        return Optional.ofNullable(gamingPlayer);
     }
 
     private void scheduleNextFishing() {
@@ -241,34 +311,34 @@ public class CustomFishingHook {
     }
 
     public void onEscape() {
-        plugin.getEventManager().trigger(context, nextLoot.id(), MechanicType.getTypeByID(nextLoot.id()), ActionTrigger.ESCAPE);
+        plugin.getEventManager().trigger(context, nextLoot.id(), MechanicType.LOOT, ActionTrigger.ESCAPE);
         gears.trigger(ActionTrigger.ESCAPE, context);
     }
 
     public void onLure() {
-        plugin.getEventManager().trigger(context, nextLoot.id(), MechanicType.getTypeByID(nextLoot.id()), ActionTrigger.LURE);
+        plugin.getEventManager().trigger(context, nextLoot.id(), MechanicType.LOOT, ActionTrigger.LURE);
         gears.trigger(ActionTrigger.LURE, context);
     }
 
-    private void handleFailedFishing() {
+    public void handleFailedFishing() {
 
         // update the hook location
-        context.arg(ContextKeys.HOOK_LOCATION, hook.getLocation());
-        context.arg(ContextKeys.HOOK_X, hook.getLocation().getBlockX());
-        context.arg(ContextKeys.HOOK_Y, hook.getLocation().getBlockY());
-        context.arg(ContextKeys.HOOK_Z, hook.getLocation().getBlockZ());
+        context.arg(ContextKeys.OTHER_LOCATION, hook.getLocation());
+        context.arg(ContextKeys.OTHER_X, hook.getLocation().getBlockX());
+        context.arg(ContextKeys.OTHER_Y, hook.getLocation().getBlockY());
+        context.arg(ContextKeys.OTHER_Z, hook.getLocation().getBlockZ());
 
         gears.trigger(ActionTrigger.FAILURE, context);
-        plugin.getEventManager().trigger(context, nextLoot.id(), MechanicType.getTypeByID(nextLoot.id()), ActionTrigger.FAILURE);
+        plugin.getEventManager().trigger(context, nextLoot.id(), MechanicType.LOOT, ActionTrigger.FAILURE);
     }
 
-    private void handleSuccessfulFishing() {
+    public void handleSuccessfulFishing() {
 
         // update the hook location
-        context.arg(ContextKeys.HOOK_LOCATION, hook.getLocation());
-        context.arg(ContextKeys.HOOK_X, hook.getLocation().getBlockX());
-        context.arg(ContextKeys.HOOK_Y, hook.getLocation().getBlockY());
-        context.arg(ContextKeys.HOOK_Z, hook.getLocation().getBlockZ());
+        context.arg(ContextKeys.OTHER_LOCATION, hook.getLocation());
+        context.arg(ContextKeys.OTHER_X, hook.getLocation().getBlockX());
+        context.arg(ContextKeys.OTHER_Y, hook.getLocation().getBlockY());
+        context.arg(ContextKeys.OTHER_Z, hook.getLocation().getBlockZ());
 
         LootType lootType = context.arg(ContextKeys.LOOT);
         Objects.requireNonNull(lootType, "Missing loot type");
@@ -289,6 +359,8 @@ public class CustomFishingHook {
             return;
         }
 
+        gears.trigger(ActionTrigger.SUCCESS, context);
+
         switch (lootType) {
             case ITEM -> {
                 for (int i = 0; i < amount; i++) {
@@ -303,21 +375,41 @@ public class CustomFishingHook {
                                 context.arg(ContextKeys.NICK, "<lang:" + stack.getType().translationKey() + ">");
                             }
                         }
+
+                        FishingLootSpawnEvent spawnEvent = new FishingLootSpawnEvent(context, hook.getLocation(), nextLoot, item);
+                        Bukkit.getPluginManager().callEvent(spawnEvent);
+                        if (item != null && !spawnEvent.summonEntity())
+                            item.remove();
+                        if (spawnEvent.skipActions())
+                            return;
+                        if (item != null && item.isValid() && nextLoot.preventGrabbing()) {
+                            item.getPersistentDataContainer().set(Objects.requireNonNull(NamespacedKey.fromString("owner", plugin.getBoostrap())), PersistentDataType.STRING, context.getHolder().getName());
+                        }
                         doSuccessActions();
                     }, (long) ConfigManager.multipleLootSpawnDelay() * i, hook.getLocation());
                 }
             }
             case BLOCK -> {
-                plugin.getBlockManager().summonBlockLoot(context);
+                FallingBlock fallingBlock = plugin.getBlockManager().summonBlockLoot(context);
+                FishingLootSpawnEvent spawnEvent = new FishingLootSpawnEvent(context, hook.getLocation(), nextLoot, fallingBlock);
+                Bukkit.getPluginManager().callEvent(spawnEvent);
+                if (!spawnEvent.summonEntity())
+                    fallingBlock.remove();
+                if (spawnEvent.skipActions())
+                    return;
                 doSuccessActions();
             }
             case ENTITY -> {
-                plugin.getEntityManager().summonEntityLoot(context);
+                Entity entity = plugin.getEntityManager().summonEntityLoot(context);
+                FishingLootSpawnEvent spawnEvent = new FishingLootSpawnEvent(context, hook.getLocation(), nextLoot, entity);
+                Bukkit.getPluginManager().callEvent(spawnEvent);
+                if (!spawnEvent.summonEntity())
+                    entity.remove();
+                if (spawnEvent.skipActions())
+                    return;
                 doSuccessActions();
             }
         }
-
-        gears.trigger(ActionTrigger.SUCCESS, context);
     }
 
     private void doSuccessActions() {
@@ -354,20 +446,25 @@ public class CustomFishingHook {
 
         String id = context.arg(ContextKeys.ID);
         Player player = context.getHolder();
-        MechanicType type = MechanicType.getTypeByID(id);
-        plugin.getEventManager().trigger(context, id, type, ActionTrigger.SUCCESS);
-        player.setStatistic(Statistic.FISH_CAUGHT, player.getStatistic(Statistic.FISH_CAUGHT) + 1);
+
         if (!nextLoot.disableStats()) {
             plugin.getStorageManager().getOnlineUser(player.getUniqueId()).ifPresent(
                     userData -> {
-                        userData.statistics().addAmount(id, 1);
+                        userData.statistics().addAmount(nextLoot.statisticKey().amountKey(), 1);
+                        context.arg(ContextKeys.TOTAL_AMOUNT, userData.statistics().getAmount(nextLoot.statisticKey().amountKey()));
                         Optional.ofNullable(context.arg(ContextKeys.SIZE)).ifPresent(size -> {
-                            if (userData.statistics().updateSize(id, size)) {
-                                plugin.getEventManager().trigger(context, id, type, ActionTrigger.NEW_SIZE_RECORD);
+                            float max = Math.max(0, userData.statistics().getMaxSize(nextLoot.statisticKey().sizeKey()));
+                            context.arg(ContextKeys.RECORD, max);
+                            context.arg(ContextKeys.RECORD_FORMATTED, String.format("%.2f", max));
+                            if (userData.statistics().updateSize(nextLoot.statisticKey().sizeKey(), size)) {
+                                plugin.getEventManager().trigger(context, id, MechanicType.LOOT, ActionTrigger.NEW_SIZE_RECORD);
                             }
                         });
                     }
             );
         }
+
+        plugin.getEventManager().trigger(context, id, MechanicType.LOOT, ActionTrigger.SUCCESS);
+        player.setStatistic(Statistic.FISH_CAUGHT, player.getStatistic(Statistic.FISH_CAUGHT) + 1);
     }
 }

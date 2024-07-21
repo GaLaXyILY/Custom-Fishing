@@ -15,12 +15,14 @@
  *  along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package net.momirealms.customfishing.api.mechanic.game;
+package net.momirealms.customfishing.api.mechanic.item;
 
-import org.bukkit.entity.FishHook;
+import com.saicone.rtag.RtagItem;
+import net.momirealms.customfishing.api.mechanic.context.Context;
 import org.bukkit.entity.Player;
 
-public interface GameInstance {
-    
-    GamingPlayer start(Player player, FishHook hook, GameSettings settings);
+@FunctionalInterface
+public interface ItemEditor {
+
+    void apply(RtagItem item, Context<Player> context);
 }

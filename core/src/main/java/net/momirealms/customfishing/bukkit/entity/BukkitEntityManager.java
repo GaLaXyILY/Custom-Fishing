@@ -29,7 +29,6 @@ import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
 import org.bukkit.util.Vector;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import java.util.HashMap;
 import java.util.Locale;
@@ -100,12 +99,12 @@ public class BukkitEntityManager implements EntityManager {
         return entityProviders.remove(id) != null;
     }
 
-    @Nullable
+    @NotNull
     @Override
     public Entity summonEntityLoot(Context<Player> context) {
         String id = context.arg(ContextKeys.ID);
         EntityConfig config = requireNonNull(entities.get(id), "Entity " + id + " not found");
-        Location hookLocation = requireNonNull(context.arg(ContextKeys.HOOK_LOCATION));
+        Location hookLocation = requireNonNull(context.arg(ContextKeys.OTHER_LOCATION));
         Location playerLocation = requireNonNull(context.getHolder().getLocation());
         String entityID = config.entityID();
         Entity entity;

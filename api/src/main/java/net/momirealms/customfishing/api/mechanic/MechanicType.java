@@ -15,19 +15,20 @@
  *  along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package net.momirealms.customfishing.api.mechanic.item;
+package net.momirealms.customfishing.api.mechanic;
 
 import net.kyori.adventure.util.Index;
-import net.momirealms.customfishing.api.BukkitCustomFishingPlugin;
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Objects;
 
 public class MechanicType {
 
-    private static final HashMap<String, MechanicType> types = new HashMap<>();
+    private static final HashMap<String, List<MechanicType>> types = new HashMap<>();
 
     public static final MechanicType LOOT = of("loot");
     public static final MechanicType ROD = of("rod");
@@ -65,18 +66,13 @@ public class MechanicType {
 
     @ApiStatus.Internal
     public static void register(String id, MechanicType type) {
-        MechanicType previous = types.put(id, type);
-        if (previous != null) {
-            BukkitCustomFishingPlugin.getInstance().getPluginLogger().warn(
-                    "Attempted to register item type " + id + " twice, this is not a safe behavior. ["
-                            + type.getType() + "," + previous.getType() + "]"
-                    );
-        }
+        List<MechanicType> previous = types.computeIfAbsent(id, k -> new ArrayList<>());
+        previous.add(type);
     }
 
     @Nullable
     @ApiStatus.Internal
-    public static MechanicType getTypeByID(String id) {
+    public static List<MechanicType> getTypeByID(String id) {
         return types.get(id);
     }
 

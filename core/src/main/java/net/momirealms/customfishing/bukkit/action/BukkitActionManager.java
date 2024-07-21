@@ -25,6 +25,7 @@ import net.kyori.adventure.text.Component;
 import net.momirealms.customfishing.api.BukkitCustomFishingPlugin;
 import net.momirealms.customfishing.api.mechanic.action.*;
 import net.momirealms.customfishing.api.mechanic.context.ContextKeys;
+import net.momirealms.customfishing.api.mechanic.effect.Effect;
 import net.momirealms.customfishing.api.mechanic.misc.placeholder.BukkitPlaceholderManager;
 import net.momirealms.customfishing.api.mechanic.misc.value.MathValue;
 import net.momirealms.customfishing.api.mechanic.misc.value.TextValue;
@@ -33,6 +34,8 @@ import net.momirealms.customfishing.bukkit.integration.VaultHook;
 import net.momirealms.customfishing.bukkit.util.LocationUtils;
 import net.momirealms.customfishing.bukkit.util.PlayerUtils;
 import net.momirealms.customfishing.common.helper.AdventureHelper;
+import net.momirealms.customfishing.common.locale.MessageConstants;
+import net.momirealms.customfishing.common.locale.TranslationManager;
 import net.momirealms.customfishing.common.plugin.scheduler.SchedulerTask;
 import net.momirealms.customfishing.common.util.ClassUtils;
 import net.momirealms.customfishing.common.util.ListUtils;
@@ -781,7 +784,7 @@ public class BukkitActionManager implements ActionManager<Player> {
                 return context -> {
                     if (Math.random() > chance) return;
                     Player owner = context.getHolder();
-                    Location location = position ? requireNonNull(context.arg(ContextKeys.HOOK_LOCATION)).clone() : owner.getLocation().clone();
+                    Location location = position ? requireNonNull(context.arg(ContextKeys.OTHER_LOCATION)).clone() : owner.getLocation().clone();
                     location.add(x.evaluate(context), y.evaluate(context) - 1, z.evaluate(context));
                     if (opposite) location.setYaw(-owner.getLocation().getYaw());
                     else location.setYaw((float) yaw.evaluate(context));
@@ -830,7 +833,7 @@ public class BukkitActionManager implements ActionManager<Player> {
                 return context -> {
                     if (Math.random() > chance) return;
                     Player owner = context.getHolder();
-                    Location location = position ? requireNonNull(context.arg(ContextKeys.HOOK_LOCATION)).clone() : owner.getLocation().clone();
+                    Location location = position ? requireNonNull(context.arg(ContextKeys.OTHER_LOCATION)).clone() : owner.getLocation().clone();
                     location.add(x.evaluate(context), y.evaluate(context), z.evaluate(context));
                     FakeArmorStand armorStand = SparrowHeart.getInstance().createFakeArmorStand(location);
                     armorStand.invisible(true);
@@ -867,7 +870,32 @@ public class BukkitActionManager implements ActionManager<Player> {
 
     private void registerFishFindAction() {
         registerAction("fish-finder", (args, chance) -> {
+            String surrounding = (String) args;
             return context -> {
+                if (Math.random() > chance) return;
+                String previous = context.arg(ContextKeys.SURROUNDING);
+                context.arg(ContextKeys.SURROUNDING, surrounding);
+                Collection<String> loots = plugin.getLootManager().getWeightedLoots(Effect.newInstance(), context).keySet();
+                StringJoiner stringJoiner = new StringJoiner(TranslationManager.miniMessageTranslation(MessageConstants.COMMAND_FISH_FINDER_SPLIT_CHAR.build().key()));
+                for (String loot : loots) {
+                    plugin.getLootManager().getLoot(loot).ifPresent(lootIns -> {
+                        if (lootIns.showInFinder()) {
+                            if (!lootIns.nick().equals("UNDEFINED")) {
+                                stringJoiner.add(lootIns.nick());
+                            }
+                        }
+                    });
+                }
+                if (previous == null) {
+                    context.remove(ContextKeys.SURROUNDING);
+                } else {
+                    context.arg(ContextKeys.SURROUNDING, previous);
+                }
+                if (loots.isEmpty()) {
+                    plugin.getSenderFactory().wrap(context.getHolder()).sendMessage(TranslationManager.render(MessageConstants.COMMAND_FISH_FINDER_NO_LOOT.build()));
+                } else {
+                    plugin.getSenderFactory().wrap(context.getHolder()).sendMessage(TranslationManager.render(MessageConstants.COMMAND_FISH_FINDER_POSSIBLE_LOOTS.arguments(AdventureHelper.miniMessage(stringJoiner.toString())).build()));
+                }
             };
         });
     }

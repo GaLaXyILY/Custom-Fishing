@@ -17,7 +17,7 @@
 
 package net.momirealms.customfishing.api.mechanic.effect;
 
-import net.momirealms.customfishing.api.mechanic.item.MechanicType;
+import net.momirealms.customfishing.api.mechanic.MechanicType;
 import net.momirealms.customfishing.common.plugin.feature.Reloadable;
 
 import java.util.Optional;

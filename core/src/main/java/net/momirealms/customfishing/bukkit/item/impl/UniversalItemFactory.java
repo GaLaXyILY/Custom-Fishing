@@ -21,16 +21,15 @@ import com.saicone.rtag.RtagItem;
 import com.saicone.rtag.tag.TagBase;
 import com.saicone.rtag.tag.TagCompound;
 import com.saicone.rtag.tag.TagList;
-import com.saicone.rtag.util.EnchantmentTag;
 import net.momirealms.customfishing.bukkit.item.BukkitItemFactory;
 import net.momirealms.customfishing.common.plugin.CustomFishingPlugin;
 import net.momirealms.customfishing.common.util.Key;
-import org.bukkit.NamespacedKey;
-import org.bukkit.Registry;
-import org.bukkit.enchantments.Enchantment;
-import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.ItemFlag;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 public class UniversalItemFactory extends BukkitItemFactory {
 
@@ -124,6 +123,23 @@ public class UniversalItemFactory extends BukkitItemFactory {
     }
 
     @Override
+    protected Optional<Integer> maxDamage(RtagItem item) {
+//        if (!item.hasTag("CustomFishing", "max_dur")) return Optional.empty();
+//        return Optional.of(item.get("CustomFishing", "max_dur"));
+        return Optional.of((int) item.getItem().getType().getMaxDurability());
+    }
+
+    @Override
+    protected void maxDamage(RtagItem item, Integer damage) {
+//        if (damage == null) {
+//            item.remove("CustomFishing", "max_dur");
+//        } else {
+//            item.set(damage, "CustomFishing", "max_dur");
+//        }
+        throw new UnsupportedOperationException("This feature is only available on 1.20.5+");
+    }
+
+    @Override
     protected void enchantments(RtagItem item, Map<Key, Short> enchantments) {
         ArrayList<Object> tags = new ArrayList<>();
         for (Map.Entry<Key, Short> entry : enchantments.entrySet()) {
@@ -171,5 +187,19 @@ public class UniversalItemFactory extends BukkitItemFactory {
         } else {
             item.set(List.of(Map.of("id", enchantment.toString(), "lvl", (short) level)), "StoredEnchantments");
         }
+    }
+
+    @Override
+    protected void itemFlags(RtagItem item, List<String> flags) {
+        if (flags == null || flags.isEmpty()) {
+            item.remove("HideFlags");
+            return;
+        }
+        int f = 0;
+        for (String flag : flags) {
+            ItemFlag itemFlag = ItemFlag.valueOf(flag);
+            f = f | 1 << itemFlag.ordinal();
+        }
+        item.set(f, "HideFlags");
     }
 }

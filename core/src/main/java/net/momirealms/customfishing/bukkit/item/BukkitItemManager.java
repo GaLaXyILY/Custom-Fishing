@@ -17,8 +17,9 @@
 
 package net.momirealms.customfishing.bukkit.item;
 
+import net.kyori.adventure.key.Key;
+import net.kyori.adventure.sound.Sound;
 import net.momirealms.customfishing.api.BukkitCustomFishingPlugin;
-import net.momirealms.customfishing.api.event.FishingLootSpawnEvent;
 import net.momirealms.customfishing.api.integration.ExternalProvider;
 import net.momirealms.customfishing.api.integration.ItemProvider;
 import net.momirealms.customfishing.api.mechanic.config.ConfigManager;
@@ -26,8 +27,11 @@ import net.momirealms.customfishing.api.mechanic.context.Context;
 import net.momirealms.customfishing.api.mechanic.context.ContextKeys;
 import net.momirealms.customfishing.api.mechanic.item.CustomFishingItem;
 import net.momirealms.customfishing.api.mechanic.item.ItemManager;
-import net.momirealms.customfishing.api.mechanic.item.MechanicType;
+import net.momirealms.customfishing.api.util.EventUtils;
 import net.momirealms.customfishing.bukkit.integration.item.CustomFishingItemProvider;
+import net.momirealms.customfishing.bukkit.item.damage.CustomDurabilityItem;
+import net.momirealms.customfishing.bukkit.item.damage.DurabilityItem;
+import net.momirealms.customfishing.bukkit.item.damage.VanillaDurabilityItem;
 import net.momirealms.customfishing.bukkit.util.ItemStackUtils;
 import net.momirealms.customfishing.bukkit.util.LocationUtils;
 import net.momirealms.customfishing.common.item.Item;
@@ -38,6 +42,7 @@ import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.block.Block;
 import org.bukkit.block.Skull;
+import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.FishHook;
 import org.bukkit.entity.Player;
 import org.bukkit.event.Cancellable;
@@ -47,7 +52,13 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.block.*;
 import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.event.inventory.InventoryPickupItemEvent;
+import org.bukkit.event.inventory.PrepareAnvilEvent;
+import org.bukkit.event.player.PlayerAttemptPickupItemEvent;
+import org.bukkit.event.player.PlayerItemDamageEvent;
+import org.bukkit.event.player.PlayerItemMendEvent;
+import org.bukkit.inventory.AnvilInventory;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.util.Vector;
@@ -161,18 +172,6 @@ public class BukkitItemManager implements ItemManager, Listener {
 
     @Nullable
     @Override
-    public MechanicType getItemType(@NotNull ItemStack itemStack) {
-        return MechanicType.getTypeByID(getCustomFishingItemID(itemStack));
-    }
-
-    @Nullable
-    @Override
-    public MechanicType getItemType(@NotNull String id) {
-        return MechanicType.getTypeByID(id);
-    }
-
-    @Nullable
-    @Override
     public org.bukkit.entity.Item dropItemLoot(@NotNull Context<Player> context, ItemStack rod, FishHook hook) {
         String id = requireNonNull(context.arg(ContextKeys.ID));
         ItemStack itemStack;
@@ -188,7 +187,7 @@ public class BukkitItemManager implements ItemManager, Listener {
 
         Player player = context.getHolder();
         Location playerLocation = player.getLocation();
-        Location hookLocation = requireNonNull(context.arg(ContextKeys.HOOK_LOCATION));
+        Location hookLocation = requireNonNull(context.arg(ContextKeys.OTHER_LOCATION));
 
         double d0 = playerLocation.getX() - hookLocation.getX();
         double d1 = playerLocation.getY() - hookLocation.getY();
@@ -196,12 +195,6 @@ public class BukkitItemManager implements ItemManager, Listener {
         Vector vector = new Vector(d0 * 0.1D, d1 * 0.1D + Math.sqrt(Math.sqrt(d0 * d0 + d1 * d1 + d2 * d2)) * 0.08D, d2 * 0.1D);
 
         org.bukkit.entity.Item itemEntity = hookLocation.getWorld().dropItem(hookLocation, itemStack);
-        FishingLootSpawnEvent spawnEvent = new FishingLootSpawnEvent(player, hookLocation, plugin.getLootManager().getLoot(id).orElseThrow(), itemEntity);
-        Bukkit.getPluginManager().callEvent(spawnEvent);
-        if (spawnEvent.isCancelled()) {
-            itemEntity.remove();
-            return itemEntity;
-        }
 
         itemEntity.setInvulnerable(true);
         // prevent from being killed by lava
@@ -255,8 +248,108 @@ public class BukkitItemManager implements ItemManager, Listener {
     }
 
     @Override
-    public void decreaseDurability(ItemStack itemStack, int amount, boolean incorrectUsage) {
+    public boolean hasCustomDurability(ItemStack itemStack) {
+        if (itemStack == null || itemStack.getType() == Material.AIR || itemStack.getAmount() == 0)
+            return false;
+        Item<ItemStack> wrapped = factory.wrap(itemStack);
+        return wrapped.hasTag("CustomFishing", "max_dur");
+    }
 
+    @Override
+    public void decreaseDurability(Player player, ItemStack itemStack, int amount, boolean incorrectUsage) {
+        if (itemStack == null || itemStack.getType() == Material.AIR || itemStack.getAmount() == 0)
+            return;
+        if (!incorrectUsage) {
+            int unBreakingLevel = itemStack.getEnchantmentLevel(Enchantment.DURABILITY);
+            if (Math.random() > (double) 1 / (unBreakingLevel + 1)) {
+                return;
+            }
+        }
+        Item<ItemStack> wrapped = factory.wrap(itemStack);
+        if (wrapped.unbreakable())
+            return;
+
+        ItemMeta previousMeta = itemStack.getItemMeta().clone();
+        PlayerItemDamageEvent itemDamageEvent = new PlayerItemDamageEvent(player, itemStack, amount);
+        if (EventUtils.fireAndCheckCancel(itemDamageEvent)) {
+            plugin.debug("Another plugin modified the item from `PlayerItemDamageEvent` called by CustomFishing");
+            return;
+        }
+        if (!itemStack.getItemMeta().equals(previousMeta)) {
+            return;
+        }
+
+        DurabilityItem durabilityItem = wrapDurabilityItem(wrapped);
+        int damage = durabilityItem.damage();
+        if (damage + amount >= durabilityItem.maxDamage()) {
+            plugin.getSenderFactory().getAudience(player).playSound(Sound.sound(Key.key("minecraft:entity.item.break"), Sound.Source.PLAYER, 1, 1));
+            itemStack.setAmount(0);
+            return;
+        }
+
+        durabilityItem.damage(damage + amount);
+        wrapped.load();
+    }
+
+    @Override
+    public void setDurability(Player player, ItemStack itemStack, int damage) {
+        if (itemStack == null || itemStack.getType() == Material.AIR || itemStack.getAmount() == 0)
+            return;
+        Item<ItemStack> wrapped = factory.wrap(itemStack);
+        if (wrapped.unbreakable())
+            return;
+        DurabilityItem wrappedDurability = wrapDurabilityItem(wrapped);
+        if (damage >= wrappedDurability.maxDamage()) {
+            if (player != null)
+                plugin.getSenderFactory().getAudience(player).playSound(Sound.sound(Key.key("minecraft:entity.item.break"), Sound.Source.PLAYER, 1, 1));
+            itemStack.setAmount(0);
+            return;
+        }
+        wrappedDurability.damage(damage);
+        wrapped.load();
+    }
+
+    public DurabilityItem wrapDurabilityItem(Item<ItemStack> wrapped) {
+        if (wrapped.hasTag("CustomFishing", "max_dur")) {
+            return new CustomDurabilityItem(wrapped);
+        } else {
+            return new VanillaDurabilityItem(wrapped);
+        }
+    }
+
+    @EventHandler (ignoreCancelled = true)
+    public void onMending(PlayerItemMendEvent event) {
+        ItemStack itemStack = event.getItem();
+        if (!hasCustomDurability(itemStack)) {
+            return;
+        }
+        event.setCancelled(true);
+        Item<ItemStack> wrapped = factory.wrap(itemStack);
+        if (wrapped.unbreakable())
+            return;
+        DurabilityItem wrappedDurability = wrapDurabilityItem(wrapped);
+        setDurability(event.getPlayer(), itemStack, Math.max(wrappedDurability.damage() - event.getRepairAmount(), 0));
+    }
+
+    @EventHandler (ignoreCancelled = true)
+    public void onAnvil(PrepareAnvilEvent event) {
+        AnvilInventory anvil = event.getInventory();
+        ItemStack first = anvil.getFirstItem();
+        ItemStack second = anvil.getSecondItem();
+        if (first != null && second != null
+                && first.getType() == Material.FISHING_ROD && second.getType() == Material.FISHING_ROD && event.getResult() != null
+                && hasCustomDurability(first)) {
+            Item<ItemStack> wrapped1 = factory.wrap(anvil.getResult());
+            DurabilityItem wrappedDurability1 = wrapDurabilityItem(wrapped1);
+
+            Item<ItemStack> wrapped2 = factory.wrap(second);
+            DurabilityItem wrappedDurability2 = wrapDurabilityItem(wrapped2);
+
+            int durability2 = wrappedDurability2.maxDamage() - wrappedDurability2.damage();
+            int damage1 = Math.max(wrappedDurability1.damage() - durability2, 0);
+            wrappedDurability1.damage(damage1);
+            event.setResult(wrapped1.load());
+        }
     }
 
     @EventHandler(ignoreCancelled = true)
@@ -278,7 +371,7 @@ public class BukkitItemManager implements ItemManager, Listener {
 
         Item<ItemStack> wrapped = factory.wrap(itemStack);
         if (wrapped.hasTag("CustomFishing")) {
-            if (!wrapped.hasTag("CustomFishing", "placeable")) {
+            if (!wrapped.hasTag("CustomFishing", "placeable") || ((int) wrapped.getTag("CustomFishing", "placeable").get()) != 1) {
                 event.setCancelled(true);
                 return;
             }
@@ -338,6 +431,16 @@ public class BukkitItemManager implements ItemManager, Listener {
     @EventHandler (ignoreCancelled = true)
     public void onExplosion(EntityExplodeEvent event) {
         handleExplosion(event.blockList());
+    }
+
+    @EventHandler (ignoreCancelled = true)
+    public void onPickUpItem(PlayerAttemptPickupItemEvent event) {
+        String owner = event.getItem().getPersistentDataContainer().get(requireNonNull(NamespacedKey.fromString("owner", plugin.getBoostrap())), PersistentDataType.STRING);
+        if (owner != null) {
+            if (!owner.equals(event.getPlayer().getName())) {
+                event.setCancelled(true);
+            }
+        }
     }
 
     private void handleExplosion(List<Block> blocks) {

@@ -17,6 +17,7 @@
 
 package net.momirealms.customfishing.bukkit.config;
 
+import com.saicone.rtag.RtagItem;
 import dev.dejvokep.boostedyaml.YamlDocument;
 import dev.dejvokep.boostedyaml.block.implementation.Section;
 import dev.dejvokep.boostedyaml.dvs.versioning.BasicVersioning;
@@ -25,6 +26,7 @@ import dev.dejvokep.boostedyaml.settings.general.GeneralSettings;
 import dev.dejvokep.boostedyaml.settings.loader.LoaderSettings;
 import dev.dejvokep.boostedyaml.settings.updater.UpdaterSettings;
 import net.momirealms.customfishing.api.BukkitCustomFishingPlugin;
+import net.momirealms.customfishing.api.mechanic.MechanicType;
 import net.momirealms.customfishing.api.mechanic.action.Action;
 import net.momirealms.customfishing.api.mechanic.action.ActionTrigger;
 import net.momirealms.customfishing.api.mechanic.config.ConfigManager;
@@ -34,7 +36,7 @@ import net.momirealms.customfishing.api.mechanic.context.ContextKeys;
 import net.momirealms.customfishing.api.mechanic.effect.Effect;
 import net.momirealms.customfishing.api.mechanic.effect.EffectProperties;
 import net.momirealms.customfishing.api.mechanic.event.EventManager;
-import net.momirealms.customfishing.api.mechanic.item.MechanicType;
+import net.momirealms.customfishing.api.mechanic.item.ItemEditor;
 import net.momirealms.customfishing.api.mechanic.loot.Loot;
 import net.momirealms.customfishing.api.mechanic.misc.value.MathValue;
 import net.momirealms.customfishing.api.mechanic.misc.value.TextValue;
@@ -49,10 +51,14 @@ import net.momirealms.customfishing.api.mechanic.totem.block.property.FaceImpl;
 import net.momirealms.customfishing.api.mechanic.totem.block.property.HalfImpl;
 import net.momirealms.customfishing.api.mechanic.totem.block.property.TotemBlockProperty;
 import net.momirealms.customfishing.api.mechanic.totem.block.type.TypeCondition;
+import net.momirealms.customfishing.api.util.OffsetUtils;
+import net.momirealms.customfishing.bukkit.item.damage.CustomDurabilityItem;
 import net.momirealms.customfishing.bukkit.totem.particle.DustParticleSetting;
 import net.momirealms.customfishing.bukkit.totem.particle.ParticleSetting;
+import net.momirealms.customfishing.bukkit.util.ItemStackUtils;
 import net.momirealms.customfishing.common.dependency.DependencyProperties;
 import net.momirealms.customfishing.common.helper.AdventureHelper;
+import net.momirealms.customfishing.common.item.AbstractItem;
 import net.momirealms.customfishing.common.item.Item;
 import net.momirealms.customfishing.common.util.*;
 import org.bukkit.*;
@@ -64,7 +70,9 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.inventory.ItemStack;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.*;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
@@ -93,9 +101,9 @@ public class BukkitConfigManager extends ConfigManager {
     @Override
     public void load() {
         String configVersion = DependencyProperties.getDependencyVersion("config");
-        try {
+        try (InputStream inputStream = new FileInputStream(resolveConfig("config.yml").toFile())) {
             MAIN_CONFIG = YamlDocument.create(
-                    resolveConfig("config.yml").toFile(),
+                    inputStream,
                     plugin.getResourceStream("config.yml"),
                     GeneralSettings.builder()
                             .setRouteSeparator('.')
@@ -124,6 +132,7 @@ public class BukkitConfigManager extends ConfigManager {
                             .addIgnoredRoute(configVersion, "other-settings.placeholder-register", '.')
                             .build()
             );
+            MAIN_CONFIG.save(resolveConfig("config.yml").toFile());
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -161,7 +170,7 @@ public class BukkitConfigManager extends ConfigManager {
         logDataSaving = config.getBoolean("other-settings.log-data-saving", true);
         lockData = config.getBoolean("other-settings.lock-data", true);
 
-        durabilityLore = new ArrayList<>(config.getStringList("other-settings.custom-durability-format"));
+        durabilityLore = new ArrayList<>(config.getStringList("other-settings.custom-durability-format").stream().map(it -> "<!i>" + it).toList());
 
         itemDetectOrder = config.getStringList("other-settings.item-detection-order").toArray(new String[0]);
         blockDetectOrder = config.getStringList("other-settings.block-detection-order").toArray(new String[0]);
@@ -176,6 +185,8 @@ public class BukkitConfigManager extends ConfigManager {
         autoFishingRequirements = plugin.getRequirementManager().parseRequirements(config.getSection("mechanics.auto-fishing-requirements"), true);
 
         enableBag = config.getBoolean("mechanics.fishing-bag.enable", true);
+
+        baitAnimation = config.getBoolean("mechanics.bait-animation", true);
 
         multipleLootSpawnDelay = config.getInt("mechanics.multiple-loot-spawn-delay", 4);
 
@@ -192,6 +203,8 @@ public class BukkitConfigManager extends ConfigManager {
                 }
             }
         }
+
+        OffsetUtils.load(config.getSection("other-settings.offset-characters"));
 
         globalEffects = new ArrayList<>();
         Section globalEffectSection = config.getSection("mechanics.global-effects");
@@ -283,26 +296,6 @@ public class BukkitConfigManager extends ConfigManager {
     }
 
     private void registerBuiltInItemProperties() {
-        Function<Object, BiConsumer<Item<ItemStack>, Context<Player>>> f2 = arg -> {
-            Section section = (Section) arg;
-            boolean stored = Objects.equals(section.getNameAsString(), "stored-random-enchantments");
-            List<Tuple<Double, String, Short>> enchantments = getPossibleEnchantments(section);
-            return (item, context) -> {
-                HashSet<String> ids = new HashSet<>();
-                for (Tuple<Double, String, Short> pair : enchantments) {
-                    if (Math.random() < pair.left() && !ids.contains(pair.mid())) {
-                        if (stored) {
-                            item.addStoredEnchantment(Key.fromString(pair.mid()), pair.right());
-                        } else {
-                            item.addEnchantment(Key.fromString(pair.mid()), pair.right());
-                        }
-                        ids.add(pair.mid());
-                    }
-                }
-            };
-        };
-        this.registerItemParser(f2, 4850, "random-stored-enchantments");
-        this.registerItemParser(f2, 4750, "random-enchantments");
         Function<Object, BiConsumer<Item<ItemStack>, Context<Player>>> f1 = arg -> {
             Section section = (Section) arg;
             boolean stored = Objects.equals(section.getNameAsString(), "stored-enchantment-pool");
@@ -361,6 +354,26 @@ public class BukkitConfigManager extends ConfigManager {
         };
         this.registerItemParser(f1, 4800, "stored-enchantment-pool");
         this.registerItemParser(f1, 4700, "enchantment-pool");
+        Function<Object, BiConsumer<Item<ItemStack>, Context<Player>>> f2 = arg -> {
+            Section section = (Section) arg;
+            boolean stored = Objects.equals(section.getNameAsString(), "stored-random-enchantments");
+            List<Tuple<Double, String, Short>> enchantments = getPossibleEnchantments(section);
+            return (item, context) -> {
+                HashSet<String> ids = new HashSet<>();
+                for (Tuple<Double, String, Short> pair : enchantments) {
+                    if (Math.random() < pair.left() && !ids.contains(pair.mid())) {
+                        if (stored) {
+                            item.addStoredEnchantment(Key.fromString(pair.mid()), pair.right());
+                        } else {
+                            item.addEnchantment(Key.fromString(pair.mid()), pair.right());
+                        }
+                        ids.add(pair.mid());
+                    }
+                }
+            };
+        };
+        this.registerItemParser(f2, 4850, "random-stored-enchantments");
+        this.registerItemParser(f2, 4750, "random-enchantments");
         this.registerItemParser(arg -> {
             Section section = (Section) arg;
             Map<Key, Short> map = getEnchantments(section);
@@ -371,6 +384,14 @@ public class BukkitConfigManager extends ConfigManager {
             Map<Key, Short> map = getEnchantments(section);
             return (item, context) -> item.enchantments(map);
         }, 4500, "enchantments");
+        this.registerItemParser(arg -> {
+            String base64 = (String) arg;
+            return (item, context) -> item.skull(base64);
+        }, 5200, "head");
+        this.registerItemParser(arg -> {
+            List<String> args = ListUtils.toList(arg);
+            return (item, context) -> item.itemFlags(args);
+        }, 5100, "item-flags");
         this.registerItemParser(arg -> {
             MathValue<Player> mathValue = MathValue.auto(arg);
             return (item, context) -> item.customModelData((int) mathValue.evaluate(context));
@@ -401,6 +422,13 @@ public class BukkitConfigManager extends ConfigManager {
             };
         }, 2_000, "tag");
         this.registerItemParser(arg -> {
+            boolean enable = (boolean) arg;
+            return (item, context) -> {
+                if (enable) return;
+                item.setTag(UUID.randomUUID(), "CustomFishing", "uuid");
+            };
+        }, 2_222, "stackable");
+        this.registerItemParser(arg -> {
             String sizePair = (String) arg;
             String[] split = sizePair.split("~", 2);
             MathValue<Player> min = MathValue.auto(split[0]);
@@ -428,6 +456,48 @@ public class BukkitConfigManager extends ConfigManager {
                 context.arg(ContextKeys.PRICE_FORMATTED, String.format("%.2f", price));
             };
         }, 1_500, "price");
+        this.registerItemParser(arg -> {
+            boolean random = (boolean) arg;
+            return (item, context) -> {
+                if (!random) return;
+                if (item.hasTag("CustomFishing", "max_dur")) {
+                    CustomDurabilityItem durabilityItem = new CustomDurabilityItem(item);
+                    durabilityItem.damage(RandomUtils.generateRandomInt(0, durabilityItem.maxDamage() - 1));
+                } else {
+                    item.damage(RandomUtils.generateRandomInt(0, item.maxDamage().get() - 1));
+                }
+            };
+        }, 3200, "random-durability");
+        this.registerItemParser(arg -> {
+            MathValue<Player> mathValue = MathValue.auto(arg);
+            return (item, context) -> {
+                int max = (int) mathValue.evaluate(context);
+                item.setTag(max, "CustomFishing", "max_dur");
+                item.setTag(max, "CustomFishing", "cur_dur");
+                CustomDurabilityItem customDurabilityItem = new CustomDurabilityItem(item);
+                customDurabilityItem.damage(0);
+            };
+        }, 3100, "max-durability");
+        this.registerItemParser(arg -> {
+            Section section = (Section) arg;
+            ArrayList<ItemEditor> editors = new ArrayList<>();
+            ItemStackUtils.sectionToTagEditor(section, editors);
+            return (item, context) -> {
+                for (ItemEditor editor : editors) {
+                    editor.apply(((AbstractItem<RtagItem, ItemStack>) item).getRTagItem(), context);
+                }
+            };
+        }, 10_050, "nbt");
+        this.registerItemParser(arg -> {
+            Section section = (Section) arg;
+            ArrayList<ItemEditor> editors = new ArrayList<>();
+            ItemStackUtils.sectionToComponentEditor(section, editors);
+            return (item, context) -> {
+                for (ItemEditor editor : editors) {
+                    editor.apply(((AbstractItem<RtagItem, ItemStack>) item).getRTagItem(), context);
+                }
+            };
+        }, 10_075, "components");
     }
 
     private void registerBuiltInEffectModifierParser() {
@@ -631,7 +701,7 @@ public class BukkitConfigManager extends ConfigManager {
     private void registerBuiltInHookParser() {
         this.registerHookParser(object -> {
             List<String> lore = ListUtils.toList(object);
-            return builder -> builder.lore(lore);
+            return builder -> builder.lore(lore.stream().map(it -> "<!i>" + it).toList());
         }, "lore-on-rod");
     }
 
@@ -775,6 +845,10 @@ public class BukkitConfigManager extends ConfigManager {
     }
 
     private void registerBuiltInLootParser() {
+        this.registerLootParser(object -> {
+            boolean value = (boolean) object;
+            return builder -> builder.preventGrabbing(value);
+        }, "prevent-grabbing");
         this.registerLootParser(object -> {
             String string = (String) object;
             return builder -> builder.nick(string);

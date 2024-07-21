@@ -19,8 +19,8 @@ package net.momirealms.customfishing.api.mechanic.config;
 
 import dev.dejvokep.boostedyaml.block.implementation.Section;
 import net.momirealms.customfishing.api.BukkitCustomFishingPlugin;
+import net.momirealms.customfishing.api.mechanic.MechanicType;
 import net.momirealms.customfishing.api.mechanic.config.function.ConfigParserFunction;
-import net.momirealms.customfishing.api.mechanic.item.MechanicType;
 import net.momirealms.customfishing.common.config.node.Node;
 import org.apache.logging.log4j.util.TriConsumer;
 
@@ -129,7 +129,15 @@ public class ConfigType {
             }
     );
 
-    private static final ConfigType[] values = new ConfigType[] {ITEM, ENTITY, BLOCK, HOOK, ROD, BAIT, UTIL, TOTEM, ENCHANT};
+    public static final ConfigType MINI_GAME = of(
+        "minigame",
+            (id, section, functions) -> {
+                MiniGameConfigParser config = new MiniGameConfigParser(id, section);
+                BukkitCustomFishingPlugin.getInstance().getGameManager().registerGame(config.getGame());
+            }
+    );
+
+    private static final ConfigType[] values = new ConfigType[] {ITEM, ENTITY, BLOCK, HOOK, ROD, BAIT, UTIL, TOTEM, ENCHANT, MINI_GAME};
 
     public static ConfigType[] values() {
         return values;

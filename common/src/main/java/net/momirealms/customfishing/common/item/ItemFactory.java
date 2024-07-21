@@ -80,6 +80,10 @@ public abstract class ItemFactory<P extends CustomFishingPlugin, R, I> {
 
     protected abstract void damage(R item, Integer damage);
 
+    protected abstract Optional<Integer> maxDamage(R item);
+
+    protected abstract void maxDamage(R item, Integer damage);
+
     protected abstract void enchantments(R item, Map<Key, Short> enchantments);
 
     protected abstract void storedEnchantments(R item, Map<Key, Short> enchantments);
@@ -87,4 +91,6 @@ public abstract class ItemFactory<P extends CustomFishingPlugin, R, I> {
     protected abstract void addEnchantment(R item, Key enchantment, int level);
 
     protected abstract void addStoredEnchantment(R item, Key enchantment, int level);
+
+    protected abstract void itemFlags(R item, List<String> flags);
 }

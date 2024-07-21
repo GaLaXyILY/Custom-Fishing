@@ -18,12 +18,12 @@
 package net.momirealms.customfishing.api.mechanic.config;
 
 import dev.dejvokep.boostedyaml.block.implementation.Section;
+import net.momirealms.customfishing.api.mechanic.MechanicType;
 import net.momirealms.customfishing.api.mechanic.config.function.*;
 import net.momirealms.customfishing.api.mechanic.context.Context;
 import net.momirealms.customfishing.api.mechanic.effect.LootBaseEffect;
 import net.momirealms.customfishing.api.mechanic.event.EventCarrier;
 import net.momirealms.customfishing.api.mechanic.item.CustomFishingItem;
-import net.momirealms.customfishing.api.mechanic.item.MechanicType;
 import net.momirealms.customfishing.api.mechanic.loot.Loot;
 import net.momirealms.customfishing.api.mechanic.loot.LootType;
 import net.momirealms.customfishing.common.config.node.Node;
@@ -50,6 +50,11 @@ public class ItemConfigParser {
         this.id = id;
         this.material = section.getString("material");
         if (!section.contains("tag")) section.set("tag", true);
+        if (!section.contains("nick")) {
+            if (section.contains("display.name")) {
+                section.set("nick", section.getString("display.name"));
+            }
+        }
         analyze(section, functionMap);
     }
 

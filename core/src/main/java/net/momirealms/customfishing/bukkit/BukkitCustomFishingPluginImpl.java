@@ -19,8 +19,8 @@ package net.momirealms.customfishing.bukkit;
 
 import net.momirealms.customfishing.api.BukkitCustomFishingPlugin;
 import net.momirealms.customfishing.api.event.CustomFishingReloadEvent;
+import net.momirealms.customfishing.api.mechanic.MechanicType;
 import net.momirealms.customfishing.api.mechanic.config.ConfigManager;
-import net.momirealms.customfishing.api.mechanic.item.MechanicType;
 import net.momirealms.customfishing.api.mechanic.misc.cooldown.CoolDownManager;
 import net.momirealms.customfishing.api.mechanic.misc.placeholder.BukkitPlaceholderManager;
 import net.momirealms.customfishing.api.util.EventUtils;
@@ -34,11 +34,13 @@ import net.momirealms.customfishing.bukkit.effect.BukkitEffectManager;
 import net.momirealms.customfishing.bukkit.entity.BukkitEntityManager;
 import net.momirealms.customfishing.bukkit.event.BukkitEventManager;
 import net.momirealms.customfishing.bukkit.fishing.BukkitFishingManager;
+import net.momirealms.customfishing.bukkit.game.BukkitGameManager;
 import net.momirealms.customfishing.bukkit.hook.BukkitHookManager;
 import net.momirealms.customfishing.bukkit.integration.BukkitIntegrationManager;
 import net.momirealms.customfishing.bukkit.item.BukkitItemManager;
 import net.momirealms.customfishing.bukkit.loot.BukkitLootManager;
 import net.momirealms.customfishing.bukkit.market.BukkitMarketManager;
+import net.momirealms.customfishing.bukkit.migration.Migration;
 import net.momirealms.customfishing.bukkit.requirement.BukkitRequirementManager;
 import net.momirealms.customfishing.bukkit.scheduler.BukkitSchedulerAdapter;
 import net.momirealms.customfishing.bukkit.sender.BukkitSenderFactory;
@@ -96,15 +98,17 @@ public class BukkitCustomFishingPluginImpl extends BukkitCustomFishingPlugin {
                         Dependency.SQLITE_DRIVER, Dependency.SLF4J_API, Dependency.SLF4J_SIMPLE,
                         Dependency.H2_DRIVER,
                         Dependency.MONGODB_DRIVER_CORE, Dependency.MONGODB_DRIVER_SYNC, Dependency.MONGODB_DRIVER_BSON,
-                        Dependency.HIKARI_CP
+                        Dependency.HIKARI_CP,
+                        Dependency.LZ4
                 )
         );
     }
 
     @Override
     public void enable() {
-        this.eventManager = new BukkitEventManager(this);
         this.configManager = new BukkitConfigManager(this);
+        new Migration(this).start();
+        this.eventManager = new BukkitEventManager(this);
         this.requirementManager = new BukkitRequirementManager(this);
         this.actionManager = new BukkitActionManager(this);
         this.senderFactory = new BukkitSenderFactory(this);
@@ -125,6 +129,7 @@ public class BukkitCustomFishingPluginImpl extends BukkitCustomFishingPlugin {
         this.totemManager = new BukkitTotemManager(this);
         this.translationManager = new TranslationManager(this);
         this.integrationManager = new BukkitIntegrationManager(this);
+        this.gameManager = new BukkitGameManager(this);
         this.commandManager = new BukkitCommandManager(this);
         this.commandManager.registerDefaultFeatures();
 
@@ -150,6 +155,7 @@ public class BukkitCustomFishingPluginImpl extends BukkitCustomFishingPlugin {
         this.effectManager.unload();
         this.hookManager.unload();
         this.totemManager.unload();
+        this.gameManager.unload();
 
         // before ConfigManager
         this.placeholderManager.reload();
@@ -176,6 +182,7 @@ public class BukkitCustomFishingPluginImpl extends BukkitCustomFishingPlugin {
         this.effectManager.load();
         this.hookManager.load();
         this.totemManager.load();
+        this.gameManager.load();
 
         EventUtils.fireAndForget(new CustomFishingReloadEvent(this));
     }

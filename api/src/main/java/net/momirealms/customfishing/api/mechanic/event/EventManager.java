@@ -1,10 +1,10 @@
 package net.momirealms.customfishing.api.mechanic.event;
 
+import net.momirealms.customfishing.api.mechanic.MechanicType;
 import net.momirealms.customfishing.api.mechanic.action.Action;
 import net.momirealms.customfishing.api.mechanic.action.ActionManager;
 import net.momirealms.customfishing.api.mechanic.action.ActionTrigger;
 import net.momirealms.customfishing.api.mechanic.context.Context;
-import net.momirealms.customfishing.api.mechanic.item.MechanicType;
 import net.momirealms.customfishing.common.plugin.feature.Reloadable;
 import org.bukkit.entity.Player;
 
@@ -51,7 +51,6 @@ public interface EventManager extends Reloadable {
      *
      * @param context The context in which the event is triggered.
      * @param id      The unique identifier of the event carrier.
-     * @param type
      * @param trigger The trigger that initiates the event.
      */
     default void trigger(Context<Player> context, String id, MechanicType type, ActionTrigger trigger) {
@@ -63,7 +62,6 @@ public interface EventManager extends Reloadable {
      *
      * @param context       The context in which the event is triggered.
      * @param id            The unique identifier of the event carrier.
-     * @param type
      * @param trigger       The trigger that initiates the event.
      * @param previousTimes The previous times count for the event.
      * @param afterTimes    The after times count for the event.
